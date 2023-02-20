@@ -6,7 +6,7 @@ exec 3>&1
 exec 1>&2
 
 repo="$1"
-version="$(echo "$2" | cut -d - -f 2)"
+version="$2"
 file=".build/.repo-$version"
 
 old_release="$([ ! -e "$file" ] || cat "$file")"

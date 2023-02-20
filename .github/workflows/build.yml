@@ -6,10 +6,12 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v3
+        with:
+          submodules: true
       - name: setup runner
         uses: ./.github/actions/setup
       - name: build
-        run: make -j "$(nproc)" --output-sync all_bootstrap
+        run: make -j "$(nproc)" --output-sync base-amd64 base-arm64
       - name: list build artifacts
         run: ls -lah .build/
       - name: cache
@@ -23,6 +25,8 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v3
+        with:
+          submodules: true
       - name: setup runner
         uses: ./.github/actions/setup
       - name: cache
@@ -35,7 +39,7 @@ jobs:
           t="$(date '+%s')"
           find .build -exec touch -d "@$t" {} +
       - name: build
-        run: make -j "$(nproc)" --output-sync all
+        run: make -j "$(nproc)" --output-sync
       - name: list build artifacts
         run: ls -lah .build/
       - name: pack build artifacts
@@ -50,10 +54,12 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v3
+        with:
+          submodules: true
       - name: setup runner
         uses: ./.github/actions/setup
       - name: build
-        run: make -j "$(nproc)" --output-sync CONTAINER_ENGINE=docker all
+        run: make -j "$(nproc)" --output-sync CONTAINER_ENGINE=docker
       - name: list build artifacts
         run: ls -lah .build/
   build-debian:
@@ -61,9 +67,11 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v3
+        with:
+          submodules: true
       - name: setup runner
         uses: ./.github/actions/setup
       - name: build
-        run: make -j "$(nproc)" --output-sync REPO=http://deb.debian.org/debian all
+        run: make -j "$(nproc)" --output-sync REPO=http://deb.debian.org/debian
       - name: list build artifacts
         run: ls -lah .build/

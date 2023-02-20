@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+grep -E -o '(amd64|arm64)-[a-z0-9.]+$' <<< "$1"

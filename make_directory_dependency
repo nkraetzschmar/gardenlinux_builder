@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+exec 3>&1
+exec 1>&2
+
+find "$1" -depth -type d | while read -r dir; do
+	newest_file="$(ls -At "$dir" | head -n 1)"
+	touch -h -r "$dir/$newest_file" "$dir"
+done
+
+echo "$1" >&3

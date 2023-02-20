@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+cname="$1"
+
+platform="$($PYTHON parse_features --feature-dir "$CONFIG_DIR/features" --cname "$cname" platforms)"
+
+case "$platform" in
+	"") echo ".build/$cname.tar" ;;
+	"container") echo ".build/$cname.$CONTAINER_ARCHIVE_FORMAT" ;;
+	*) echo ".build/$cname.ext4" ;;
+esac

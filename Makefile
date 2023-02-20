@@ -1,4 +1,5 @@
 include def.make
+include cname.make
 
 export TMPDIR := /tmp
 
@@ -8,7 +9,7 @@ ifndef PYTHON
 include .tmp/python_venv.make
 endif
 
-ARCHIVE_FORMAT := oci
+CONTAINER_ARCHIVE_FORMAT := oci
 
 ifndef CONTAINER_ENGINE
 ifneq ($(shell uname -s),Linux)
@@ -18,7 +19,7 @@ include .tmp/container_engine.make
 else
 ifneq ($(filter Docker,$(shell $(CONTAINER_ENGINE) --version)),)
 export DOCKER_BUILDKIT := 0
-ARCHIVE_FORMAT := docker
+CONTAINER_ARCHIVE_FORMAT := docker
 endif
 endif
 
@@ -33,6 +34,11 @@ endif
 
 PYTHON_DEPENDENCIES := pyyaml networkx
 
+CONTAINER_BASE_IMAGE := docker.io/debian:bookworm
+
+NATIVE_ARCH := $(shell ./get_arch)
+NATIVE_PKGS := bash dash dpkg policycoreutils tar gzip xz-utils
+
 ifndef REPO
 REPO := http://repo.gardenlinux.io/gardenlinux
 REPO_KEY := gardenlinux.asc
@@ -41,20 +47,15 @@ else
 DEFAULT_VERSION := bookworm
 endif
 
-CONTAINER_BASE_IMAGE := docker.io/debian:bookworm
-
-NATIVE_ARCH := $(shell ./arch_mapping)
-NATIVE_PKGS := bash dash dpkg policycoreutils tar gzip xz-utils
+CONFIG_DIR := gardenlinux
+export CONFIG_DIR
 
 # ————————————————————————————————————————————————————————————————
 
 .PHONY: all all_bootstrap native native_bootstrap none clean clean_tmp container_engine_system_df
 
-all: .build/rootfs-amd64-$(DEFAULT_VERSION).ext4 .build/rootfs-arm64-$(DEFAULT_VERSION).ext4 .build/rootfs-amd64-$(DEFAULT_VERSION).$(ARCHIVE_FORMAT) .build/rootfs-arm64-$(DEFAULT_VERSION).$(ARCHIVE_FORMAT)
-all_bootstrap: .build/bootstrap-amd64-$(DEFAULT_VERSION).tar .build/bootstrap-arm64-$(DEFAULT_VERSION).tar .build/native_bin-$(DEFAULT_VERSION).tar
-
-native: .build/rootfs-$(NATIVE_ARCH)-$(DEFAULT_VERSION).ext4 .build/rootfs-$(NATIVE_ARCH)-$(DEFAULT_VERSION).$(ARCHIVE_FORMAT)
-native_bootstrap: .build/bootstrap-$(NATIVE_ARCH)-$(DEFAULT_VERSION).tar .build/native_bin-$(DEFAULT_VERSION).tar
+all: kvm-amd64 kvm-arm64 container-amd64 container-arm64
+native: kvm-$(NATIVE_ARCH) container-$(NATIVE_ARCH)
 
 none:
 
@@ -190,12 +191,12 @@ endif
 
 # ————————————————————————————————————————————————————————————————
 
-.PRECIOUS: .build/.repo-% .build/bootstrap-%.tar .build/native_bin-%.tar .build/rootfs-%.tar .build/rootfs-%.ext4 .build/%.oci
+.PRECIOUS: .build/.repo-% .build/bootstrap-%.tar .build/native_bin-%.tar .build/%.tar .build/%.ext4 .build/%.oci .build/%.dummy .build/%.artifacts
 
 .build/.repo-%:
 	true
 
-.build/bootstrap-%.tar: bootstrap $$(shell ./make_repo_check $$(REPO) $$*) | .tmp/debootstrap.image
+.build/bootstrap-%.tar: bootstrap $$(shell ./make_repo_check $$(REPO) $$(call cname_version,$$*)) | .tmp/debootstrap.image
 	target '$@'
 	info "bootstrapping"
 	arch="$$(echo '$*' | cut -d - -f 1)"
@@ -232,19 +233,19 @@ endif
 	$(CONTAINER_RUN) --rm -v "$$input_path:/input:ro" -v "$$volume:/native_bin" "$$image" tar xvf /input || ($(CONTAINER_ENGINE) volume rm "$$volume" &> /dev/null; false)
 	echo "$$volume" > '$@'
 
-.tmp/rootfs-%.container: configure .tmp/native_bin-$$(word 2,$$(subst -, ,$$*)).volume | .tmp/bootstrap-%.image
+.tmp/%.container: configure .tmp/bootstrap-$$(call cname_arch,$$*)-$$(call cname_version,$$*).image .tmp/native_bin-$$(call cname_version,$$*).volume $(shell ./make_directory_dependency '$(CONFIG_DIR)/features')
 	target '$@' '$(word 2,$^)'
 	info "configuring rootfs-$*"
 	configure_path="$$(realpath '$(word 1,$^)')"
-	volume="$$(cat '$(word 2,$^)')"
-	image="$$(cat '$|')"
+	image="$$(cat '$(word 2,$^)')"
+	volume="$$(cat '$(word 3,$^)')"
 	container_env_path="$$($(CONTAINER_RUN) --rm "$$image" bash -c 'echo $$PATH')"
 	rm -f '$@'
 	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -e "PATH=/native_bin:$$PATH" "$$image" /builder/configure
 
-.build/rootfs-%.tar: finalize .tmp/rootfs-%.container.tar .tmp/native_bin-$$(word 2,$$(subst -, ,$$*)).volume | .tmp/unshare.image
+.build/%.tar: finalize .tmp/%.container.tar .tmp/native_bin-$$(call cname_version,$$*).volume | .tmp/unshare.image
 	target '$@' '$(word 2,$^)'
-	info "finalizing rootfs-$*"
+	info "finalizing rootfs $*"
 	script_path="$$(realpath '$(word 1,$^)')"
 	input_path="$$(realpath '$(word 2,$^)')"
 	volume="$$(cat '$(word 3,$^)')"
@@ -253,7 +254,7 @@ endif
 	touch "$$output_path"
 	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$volume:/native_bin:ro" "$$image" /script || (rm "$$output_path"; false)
 
-.build/rootfs-%.ext4: image .build/rootfs-%.tar | .tmp/e2fsprogs.image
+.build/%.ext4: image .build/%.tar | .tmp/e2fsprogs.image
 	target '$@' '$(word 2,$^)'
 	info "finalizing rootfs-$*"
 	script_path="$$(realpath '$(word 1,$^)')"
@@ -262,3 +263,23 @@ endif
 	output_path="$$(realpath '$@')"
 	touch "$$output_path"
 	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" "$$image" /script || (rm "$$output_path"; false)
+
+.build/%.dummy:
+	target '$@'
+	echo '$@'
+
+.build/%.artifacts: $$(shell PYTHON='$(PYTHON)' CONTAINER_ARCHIVE_FORMAT='$(CONTAINER_ARCHIVE_FORMAT)' CONFIG_DIR='$(CONFIG_DIR)' ./make_list_build_artifacts '$$*')
+	target '$@'
+	echo -n > '$@'
+	for f in $^; do
+		echo "$$f" | tee -a '$@'
+	done
+
+# ————————————————————————————————————————————————————————————————
+
+%: .build/$$(shell $(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --default-arch '$$(NATIVE_ARCH)' --default-version '$$(DEFAULT_VERSION)' --cname '$$*').artifacts
+	true
+
+# prevents match anything rule from applying to files in bulid directory
+$(shell find . -maxdepth 1 -type f) $(CONFIG_DIR)/features:
+	true
