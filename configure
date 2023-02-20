@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends selinux-basics selinux-policy-default iputils-ping
+touch /test
+chown nobody:nogroup /test

@@ -1,0 +1,69 @@
+name: build
+on: push
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: setup runner
+        uses: ./.github/actions/setup
+      - name: build
+        run: make -j "$(nproc)" --output-sync all_bootstrap
+      - name: list build artifacts
+        run: ls -lah .build/
+      - name: cache
+        uses: actions/cache/save@v3
+        with:
+          path: .build
+          key: build-${{ github.run_id }}-${{ github.run_attempt }}
+  build:
+    runs-on: ubuntu-latest
+    needs: bootstrap
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: setup runner
+        uses: ./.github/actions/setup
+      - name: cache
+        uses: actions/cache/restore@v3
+        with:
+          path: .build
+          key: build-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: update cache timestamps
+        run: |
+          t="$(date '+%s')"
+          find .build -exec touch -d "@$t" {} +
+      - name: build
+        run: make -j "$(nproc)" --output-sync all
+      - name: list build artifacts
+        run: ls -lah .build/
+      - name: pack build artifacts
+        run: tar --create .build | zstd > build.tar.zstd
+      - name: upload bulid artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build.tar.zstd
+          path: build.tar.zstd
+  build-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: setup runner
+        uses: ./.github/actions/setup
+      - name: build
+        run: make -j "$(nproc)" --output-sync CONTAINER_ENGINE=docker all
+      - name: list build artifacts
+        run: ls -lah .build/
+  build-debian:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: setup runner
+        uses: ./.github/actions/setup
+      - name: build
+        run: make -j "$(nproc)" --output-sync REPO=http://deb.debian.org/debian all
+      - name: list build artifacts
+        run: ls -lah .build/

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+mkdir /rootfs
+mount -t tmpfs tmpfs /rootfs
+tar --extract --xattrs --xattrs-include '*' --directory /rootfs < /input
+
+truncate -s 4G /image
+mke2fs -t ext4 -d /rootfs /image
+cp --sparse always /image /output

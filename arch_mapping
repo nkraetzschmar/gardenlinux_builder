@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+[ "$#" -gt 1 ] && arch="$2" || arch="$(uname -m)"
+
+case "$arch" in
+	x86_64|amd64)
+		linux_arch=x86_64
+		dpkg_arch=amd64
+		container_arch=amd64
+		;;
+	aarch64|arm64)
+		linux_arch=aarch64
+		dpkg_arch=arm64
+		container_arch=arm64
+		;;
+	*)
+		echo "unsupported architecture" >&2
+		exit 1
+		;;
+esac
+
+[ "$#" -gt 0 ] && format="$1" || format=dpkg
+
+case "$format" in
+	linux) echo "$linux_arch" ;;
+	dpkg) echo "$dpkg_arch" ;;
+	container) echo "$container_arch" ;;
+	*)
+		echo "unknown output format $format" >&2
+		exit 1
+		;;
+esac

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+exec 1>&2
+
+[ "$(podman machine inspect "$1" | jq -r '.[0].State')" = running ] || podman machine start "$1"

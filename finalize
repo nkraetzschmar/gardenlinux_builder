@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+mkdir /chroot
+
+# tmpfs is required to allow setting security xattrs in user namespace
+mount -t tmpfs tmpfs /chroot
+
+tar --extract --xattrs --xattrs-include '*' --directory /chroot < /input
+
+rm -rf /chroot/builder
+
+mount --rbind /proc /chroot/proc
+mount --bind /native_bin /chroot/native_bin
+
+[ ! -e /chroot/loop ]
+mkdir /chroot/loop
+mount --bind /chroot /chroot/loop
+
+PATH="/native_bin:$PATH" chroot /chroot setfiles -r /loop /etc/selinux/default/contexts/files/file_contexts /loop
+
+umount /chroot/loop
+rmdir /chroot/loop
+
+umount /chroot/native_bin
+rmdir /chroot/native_bin
+umount -l /chroot/proc
+
+tar --create --sort name --xattrs --xattrs-include '*' --transform 's|^\./||' --directory /chroot . > /output
