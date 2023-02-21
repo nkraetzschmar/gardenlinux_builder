@@ -1,7 +1,7 @@
 name: build
 on: push
 jobs:
-  bootstrap:
+  base:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -11,17 +11,17 @@ jobs:
       - name: setup runner
         uses: ./.github/actions/setup
       - name: build
-        run: make -j "$(nproc)" --output-sync base-amd64 base-arm64
+        run: make -j $(nproc) --output-sync TMPDIR=/mnt base-amd64 base-arm64
       - name: list build artifacts
         run: ls -lah .build/
       - name: cache
         uses: actions/cache/save@v3
         with:
           path: .build
-          key: build-${{ github.run_id }}-${{ github.run_attempt }}
+          key: base-${{ github.run_id }}-${{ github.run_attempt }}
   build:
     runs-on: ubuntu-latest
-    needs: bootstrap
+    needs: base
     steps:
       - name: checkout
         uses: actions/checkout@v3
@@ -33,13 +33,13 @@ jobs:
         uses: actions/cache/restore@v3
         with:
           path: .build
-          key: build-${{ github.run_id }}-${{ github.run_attempt }}
+          key: base-${{ github.run_id }}-${{ github.run_attempt }}
       - name: update cache timestamps
         run: |
           t="$(date '+%s')"
           find .build -exec touch -d "@$t" {} +
       - name: build
-        run: make -j "$(nproc)" --output-sync
+        run: make -j $(nproc) --output-sync TMPDIR=/mnt
       - name: list build artifacts
         run: ls -lah .build/
       - name: pack build artifacts
@@ -59,7 +59,7 @@ jobs:
       - name: setup runner
         uses: ./.github/actions/setup
       - name: build
-        run: make -j "$(nproc)" --output-sync CONTAINER_ENGINE=docker
+        run: make -j $(nproc) --output-sync TMPDIR=/mnt CONTAINER_ENGINE=docker base
       - name: list build artifacts
         run: ls -lah .build/
   build-debian:
@@ -72,6 +72,6 @@ jobs:
       - name: setup runner
         uses: ./.github/actions/setup
       - name: build
-        run: make -j "$(nproc)" --output-sync REPO=http://deb.debian.org/debian
+        run: make -j $(nproc) --output-sync TMPDIR=/mnt REPO=http://deb.debian.org/debian base
       - name: list build artifacts
         run: ls -lah .build/

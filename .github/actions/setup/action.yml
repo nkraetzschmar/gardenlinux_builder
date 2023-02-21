@@ -1,6 +1,12 @@
 runs:
   using: composite
   steps:
+    - name: free up storage
+      shell: bash
+      run: |
+        sudo swapoff -a
+        sudo find /mnt -mindepth 1 -delete
+        sudo chmod 1777 /mnt
     - name: install required packages
       shell: bash
       run: |

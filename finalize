@@ -18,7 +18,7 @@ mount --bind /native_bin /chroot/native_bin
 mkdir /chroot/loop
 mount --bind /chroot /chroot/loop
 
-PATH="/native_bin:$PATH" chroot /chroot setfiles -r /loop /etc/selinux/default/contexts/files/file_contexts /loop
+# PATH="/native_bin:$PATH" chroot /chroot setfiles -r /loop /etc/selinux/default/contexts/files/file_contexts /loop
 
 umount /chroot/loop
 rmdir /chroot/loop

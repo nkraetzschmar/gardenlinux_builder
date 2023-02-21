@@ -54,8 +54,8 @@ export CONFIG_DIR
 
 .PHONY: all all_bootstrap native native_bootstrap none clean clean_tmp container_engine_system_df
 
-all: kvm-amd64 kvm-arm64 container-amd64 container-arm64
-native: kvm-$(NATIVE_ARCH) container-$(NATIVE_ARCH)
+all: kvm-amd64 kvm-arm64 metal-amd64 metal-arm64 container-amd64 container-arm64
+native: kvm-$(NATIVE_ARCH) metal-$(NATIVE_ARCH) container-$(NATIVE_ARCH)
 
 none:
 
@@ -239,9 +239,11 @@ endif
 	configure_path="$$(realpath '$(word 1,$^)')"
 	image="$$(cat '$(word 2,$^)')"
 	volume="$$(cat '$(word 3,$^)')"
+	features_dir_path="$$(realpath '$(word 4,$^)')"
 	container_env_path="$$($(CONTAINER_RUN) --rm "$$image" bash -c 'echo $$PATH')"
+	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
 	rm -f '$@'
-	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -e "PATH=/native_bin:$$PATH" "$$image" /builder/configure
+	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e "PATH=/native_bin:$$container_env_path" "$$image" /builder/configure --arch '$(call cname_arch,$*)' $$features
 
 .build/%.tar: finalize .tmp/%.container.tar .tmp/native_bin-$$(call cname_version,$$*).volume | .tmp/unshare.image
 	target '$@' '$(word 2,$^)'
