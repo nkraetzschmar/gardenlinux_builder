@@ -62,16 +62,16 @@ jobs:
         run: make -j $(nproc) --output-sync TMPDIR=/mnt CONTAINER_ENGINE=docker base
       - name: list build artifacts
         run: ls -lah .build/
-  build-debian:
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v3
-        with:
-          submodules: true
-      - name: setup runner
-        uses: ./.github/actions/setup
-      - name: build
-        run: make -j $(nproc) --output-sync TMPDIR=/mnt REPO=http://deb.debian.org/debian base
-      - name: list build artifacts
-        run: ls -lah .build/
+  # build-debian:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: checkout
+  #       uses: actions/checkout@v3
+  #       with:
+  #         submodules: true
+  #     - name: setup runner
+  #       uses: ./.github/actions/setup
+  #     - name: build
+  #       run: make -j $(nproc) --output-sync TMPDIR=/mnt REPO=http://deb.debian.org/debian base
+  #     - name: list build artifacts
+  #       run: ls -lah .build/

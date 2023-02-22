@@ -2,10 +2,39 @@
 
 set -eufo pipefail
 
+IFS=',' read -r -a features <<< "$1"
+
+fstab="$(mktemp)"
+
+for feature in "${features[@]}"; do
+	file="/builder/features/$feature/fstab"
+	if [ -e "$file" ]; then
+		[ ! -s "$fstab" ] || echo "warning: multiple fstabs, overwriting (consider using fstab.mod instead)"
+		printf 'using base fstab: %s\n' "$file"
+		sed 's/#.*$//;/^[[:space:]]*$/d' "$file" > "$fstab"
+	fi
+done
+
+fstab_tmp="$(mktemp)"
+for feature in "${features[@]}"; do
+	file="/builder/features/$feature/fstab.mod"
+	if [ -e "$file" ]; then
+		printf 'modifying fstab with %s\n' "$file"
+		"$file" < "$fstab" > "$fstab_tmp"
+		sed 's/#.*$//;/^[[:space:]]*$/d' "$fstab_tmp" > "$fstab"
+	fi
+done
+rm "$fstab_tmp"
+
+echo "---- fstab ----"
+cat "$fstab"
+echo "---------------"
+
+
 mkdir /rootfs
 mount -t tmpfs tmpfs /rootfs
 tar --extract --xattrs --xattrs-include '*' --directory /rootfs < /input
 
-truncate -s 4G /image
-mke2fs -t ext4 -d /rootfs /image
+(export PATH="/builder/image.d:$PATH"; makepart /rootfs < "$fstab" | makedisk /rootfs /image)
+
 cp --sparse always /image /output

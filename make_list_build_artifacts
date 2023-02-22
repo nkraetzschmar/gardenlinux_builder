@@ -9,5 +9,5 @@ platform="$($PYTHON parse_features --feature-dir "$CONFIG_DIR/features" --cname 
 case "$platform" in
 	"") echo ".build/$cname.tar" ;;
 	"container") echo ".build/$cname.$CONTAINER_ARCHIVE_FORMAT" ;;
-	*) echo ".build/$cname.ext4" ;;
+	*) echo ".build/$cname.raw" ;;
 esac

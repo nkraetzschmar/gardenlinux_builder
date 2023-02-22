@@ -61,8 +61,16 @@ pkg_list="$(mktemp)"
 comm -2 -3 "$pkg_include_processed" "$pkg_exclude_processed" > "$pkg_list"
 rm "$pkg_include_processed" "$pkg_exclude_processed"
 
+cat > /etc/apt/apt.conf.d/native_bin << EOF
+Dir::Bin::dpkg "/native_bin/dpkg";
+DPkg::Path "$PATH";
+DPkg::options { "--force-architecture"; "--force-depends"; };
+EOF
+
 INITRD=No DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $(cat "$pkg_list")
 rm "$pkg_list"
+
+rm /etc/apt/apt.conf.d/native_bin
 
 for feature in "${features[@]}"; do
 	if [ -d "/builder/features/$feature/file.include" ]; then
@@ -76,7 +84,7 @@ done
 
 for feature in "${features[@]}"; do
 	if [ -e "/builder/features/$feature/file.stat" ]; then
-		sed 's/#.*$//' "/builder/features/$feature/file.stat" | while read -r user group perm file; do
+		sed 's/#.*$//;/^[[:space:]]*$/d' "/builder/features/$feature/file.stat" | while read -r user group perm file; do
 			old_stat="$(stat -c '%A %U:%G' "$file")"
 			chown "$user:$group" "$file"
 			chmod "$perm" "$file"

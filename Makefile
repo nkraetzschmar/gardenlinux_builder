@@ -164,7 +164,7 @@ endif
 	base_image="$$(cat '$(lastword $^)')"
 	$(CONTAINER_ENGINE) image build --file "$$containerfile" --build-arg base="$$base_image" --iidfile '$@' .
 
-.tmp/debootstrap.image .tmp/e2fsprogs.image: .tmp/unshare.image
+.tmp/debootstrap.image .tmp/image.image: .tmp/unshare.image
 
 .tmp/%.image: .build/%.tar
 	target '$@' '$<'
@@ -258,15 +258,18 @@ endif
 	touch "$$output_path"
 	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$volume:/native_bin:ro" "$$image" /script || (rm "$$output_path"; false)
 
-.build/%.ext4: image .build/%.tar | .tmp/e2fsprogs.image
+.build/%.raw: image .build/%.tar $(shell ./make_directory_dependency image.d) $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/image.image
 	target '$@' '$(word 2,$^)'
 	info "finalizing rootfs-$*"
 	script_path="$$(realpath '$(word 1,$^)')"
 	input_path="$$(realpath '$(word 2,$^)')"
+	image_d_path="$$(realpath '$(word 3,$^)')"
+	features_dir_path="$$(realpath '$(word 4,$^)')"
 	image="$$(cat '$|')"
 	output_path="$$(realpath '$@')"
 	touch "$$output_path"
-	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" "$$image" /script || (rm "$$output_path"; false)
+	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
+	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$image_d_path:/builder/image.d:ro" -v "$$features_dir_path:/builder/features:ro" "$$image" /script "$$features" || (rm "$$output_path"; false)
 
 .build/%.dummy:
 	target '$@'
@@ -285,5 +288,5 @@ endif
 	true
 
 # prevents match anything rule from applying to files in bulid directory
-$(shell find . -maxdepth 1 -type f) $(CONFIG_DIR)/features:
+$(shell find . -maxdepth 1 -type f) image.d $(CONFIG_DIR)/features:
 	true
