@@ -42,7 +42,7 @@ NATIVE_PKGS := bash dash dpkg policycoreutils tar gzip xz-utils
 ifndef REPO
 REPO := http://repo.gardenlinux.io/gardenlinux
 REPO_KEY := gardenlinux.asc
-DEFAULT_VERSION := today
+DEFAULT_VERSION := 1057.0
 else
 DEFAULT_VERSION := bookworm
 endif
@@ -124,7 +124,7 @@ container_engine_system_df:
 	machine="podman-machine-$$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d - | head -c 8)"
 	path="$$(realpath '$|')"
 	podman machine init --disk-size 32 --volume "$$PWD:$$PWD" --volume "$$path:$$path" --now "$$machine"
-	podman machine ssh "$$machine" 'sudo rpm-ostree install qemu-user-static && echo SELINUX=disabled | sudo tee /etc/selinux/config && sudo sync'
+	podman machine ssh "$$machine" 'echo SELINUX=disabled | sudo tee /etc/selinux/config'
 	podman machine stop "$$machine"
 	podman machine start "$$machine"
 	echo "$$machine" > '$@'
@@ -146,7 +146,7 @@ endif
 
 # ————————————————————————————————————————————————————————————————
 
-.INTERMEDIATE: .tmp/base.image
+.INTERMEDIATE: .tmp/base.image .tmp/debootstrap.image .tmp/e2fsprogs.image
 
 .tmp/base.image:
 	target '$@'
@@ -158,11 +158,13 @@ endif
 	echo "$$image-$$arch" > '$@'
 
 .tmp/%.image: %.containerfile .tmp/base.image
-	target '$@' '$(word 2,$^)'
+	target '$@' '$(lastword $^)'
 	info "building $* container"
 	containerfile='$(word 1,$^)'
-	base_image="$$(cat '$(word 2,$^)')"
+	base_image="$$(cat '$(lastword $^)')"
 	$(CONTAINER_ENGINE) image build --file "$$containerfile" --build-arg base="$$base_image" --iidfile '$@' .
+
+.tmp/debootstrap.image .tmp/e2fsprogs.image: .tmp/unshare.image
 
 .tmp/%.image: .build/%.tar
 	target '$@' '$<'
@@ -186,12 +188,12 @@ endif
 	info "exporting container $*"
 	container="$$(cat '$<')"
 	$(CONTAINER_ENGINE) container export "$$container" > '$@'
-	$(CONTAINER_ENGINE) container rm "$$container"
+	$(CONTAINER_ENGINE) container rm "$$container" &> /dev/null || true
 	rm '$<'
 
 # ————————————————————————————————————————————————————————————————
 
-.PRECIOUS: .build/.repo-% .build/bootstrap-%.tar .build/native_bin-%.tar .build/%.tar .build/%.ext4 .build/%.oci .build/%.dummy .build/%.artifacts
+.NONINTERMEDIATE: .build/.repo-% .build/bootstrap-%.tar .build/native_bin-%.tar .build/%.tar .build/%.ext4 .build/%.oci .build/%.dummy .build/%.artifacts
 
 .build/.repo-%:
 	true
@@ -243,7 +245,7 @@ endif
 	container_env_path="$$($(CONTAINER_RUN) --rm "$$image" bash -c 'echo $$PATH')"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
 	rm -f '$@'
-	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e "PATH=/native_bin:$$container_env_path" "$$image" /builder/configure --arch '$(call cname_arch,$*)' $$features
+	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e "PATH=/native_bin:$$container_env_path" "$$image" /builder/configure --arch '$(call cname_arch,$*)' "$$features"
 
 .build/%.tar: finalize .tmp/%.container.tar .tmp/native_bin-$$(call cname_version,$$*).volume | .tmp/unshare.image
 	target '$@' '$(word 2,$^)'

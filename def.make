@@ -20,6 +20,7 @@ export BASH_ENV := make_bash_env
 
 .SECONDEXPANSION:
 
+.SECONDARY:
 .DELETE_ON_ERROR:
 
 MAKEFLAGS += --no-builtin-rules
