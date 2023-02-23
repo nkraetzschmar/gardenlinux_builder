@@ -37,7 +37,7 @@ PYTHON_DEPENDENCIES := pyyaml networkx
 CONTAINER_BASE_IMAGE := docker.io/debian:bookworm
 
 NATIVE_ARCH := $(shell ./get_arch)
-NATIVE_PKGS := bash dash dpkg policycoreutils tar gzip xz-utils
+NATIVE_PKGS := bash dash dpkg grep mawk policycoreutils sed tar gzip xz-utils
 
 ifndef REPO
 REPO := http://repo.gardenlinux.io/gardenlinux

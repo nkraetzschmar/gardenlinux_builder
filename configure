@@ -2,6 +2,13 @@
 
 set -eufo pipefail
 
+for i in sh bash; do
+	if [ -e "/native_bin/$i" ]; then
+		mv "/bin/$i" "/bin/original_$i"
+		ln -s "/native_bin/$i" "/bin/$i"
+	fi
+done
+
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--arch)
@@ -61,16 +68,8 @@ pkg_list="$(mktemp)"
 comm -2 -3 "$pkg_include_processed" "$pkg_exclude_processed" > "$pkg_list"
 rm "$pkg_include_processed" "$pkg_exclude_processed"
 
-cat > /etc/apt/apt.conf.d/native_bin << EOF
-Dir::Bin::dpkg "/native_bin/dpkg";
-DPkg::Path "$PATH";
-DPkg::options { "--force-architecture"; "--force-depends"; };
-EOF
-
-INITRD=No DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $(cat "$pkg_list")
+INITRD=No DEBIAN_FRONTEND=noninteractive apt-get install -o DPkg::Path="$PATH" -y --no-install-recommends $(cat "$pkg_list")
 rm "$pkg_list"
-
-rm /etc/apt/apt.conf.d/native_bin
 
 for feature in "${features[@]}"; do
 	if [ -d "/builder/features/$feature/file.include" ]; then
@@ -124,3 +123,9 @@ done > "$rm_files_list"
 xargs rm -rf < "$rm_files_list"
 sed 's/^/removed /' "$rm_files_list"
 rm "$rm_files_list"
+
+for i in sh bash; do
+	if [ -e "/bin/original_$i" ]; then
+		mv "/bin/original_$i" "/bin/$i"
+	fi
+done

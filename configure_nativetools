@@ -12,8 +12,9 @@ if [ "$#" -gt 0 ]; then
 		[ -f "$file" ] || continue
 		new_file="/native_bin/$(basename "$file")"
 		[ ! -e "$new_file" ] || continue
+		[ "$new_file" != /native_bin/dpkg ] || continue
 		if [ -L "$file" ]; then
-			link_target="$(basename "$(readlink "$file")")"
+			link_target="$(basename "$(realpath "$file")")"
 			ln -s "$link_target" "$new_file"
 		elif interpreter="$(patchelf --print-interpreter "$file" 2> /dev/null)"; then
 			cp "$file" "$new_file"

@@ -42,13 +42,13 @@ jobs:
         run: make -j $(nproc) --output-sync TMPDIR=/mnt
       - name: list build artifacts
         run: ls -lah .build/
-      - name: pack build artifacts
-        run: tar --create .build | zstd > build.tar.zstd
-      - name: upload bulid artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: build.tar.zstd
-          path: build.tar.zstd
+      # - name: pack build artifacts
+      #   run: tar --create .build | zstd > build.tar.zstd
+      # - name: upload bulid artifacts
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: build.tar.zstd
+      #     path: build.tar.zstd
   build-docker:
     runs-on: ubuntu-latest
     steps:
