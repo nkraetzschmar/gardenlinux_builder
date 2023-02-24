@@ -2,25 +2,6 @@
 
 set -eufo pipefail
 
-for i in sh bash; do
-	if [ -e "/native_bin/$i" ]; then
-		mv "/bin/$i" "/bin/original_$i"
-		ln -s "/native_bin/$i" "/bin/$i"
-	fi
-done
-
-while [ $# -gt 0 ]; do
-	case "$1" in
-		--arch)
-			arch="$2"
-			shift 2
-			;;
-		*)
-			break
-			;;
-	esac
-done
-
 IFS=',' read -r -a features <<< "$1"
 
 for feature in "${features[@]}"; do
@@ -43,6 +24,7 @@ dir="$(mktemp -d)"
 pkg_include_processed="$(mktemp)"
 (
 	cd "$dir"
+	arch="$(dpkg --print-architecture)"
 	PATH=""
 	set -r
 	while read -r line; do
@@ -54,6 +36,7 @@ rm "$pkg_include"
 pkg_exclude_processed="$(mktemp)"
 (
 	cd "$dir"
+	arch="$(dpkg --print-architecture)"
 	PATH=""
 	set -r
 	while read -r line; do
@@ -123,9 +106,3 @@ done > "$rm_files_list"
 xargs rm -rf < "$rm_files_list"
 sed 's/^/removed /' "$rm_files_list"
 rm "$rm_files_list"
-
-for i in sh bash; do
-	if [ -e "/bin/original_$i" ]; then
-		mv "/bin/original_$i" "/bin/$i"
-	fi
-done
