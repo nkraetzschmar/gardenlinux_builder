@@ -42,13 +42,12 @@ NATIVE_PKGS := bash dash dpkg grep mawk policycoreutils sed tar gzip xz-utils
 ifndef REPO
 REPO := http://repo.gardenlinux.io/gardenlinux
 REPO_KEY := gardenlinux.asc
-DEFAULT_VERSION := 1057.0
-else
-DEFAULT_VERSION := bookworm
 endif
 
 CONFIG_DIR := gardenlinux
 export CONFIG_DIR
+
+DEFAULT_VERSION := $(shell '$(CONFIG_DIR)/get_version')
 
 # ————————————————————————————————————————————————————————————————
 
@@ -279,7 +278,7 @@ endif
 	target '$@'
 	echo -n > '$@'
 	for f in $^; do
-		echo "$$f" | tee -a '$@'
+		basename "$$f" | tee -a '$@'
 	done
 
 # ————————————————————————————————————————————————————————————————

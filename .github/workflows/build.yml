@@ -11,7 +11,7 @@ jobs:
       - name: setup runner
         uses: ./.github/actions/setup
       - name: build
-        run: make -j $(nproc) --output-sync TMPDIR=/mnt base-amd64 base-arm64
+        run: make TMPDIR=/mnt base-amd64-today base-arm64-today
       - name: list build artifacts
         run: ls -lah .build/
       - name: cache
@@ -21,6 +21,10 @@ jobs:
           key: base-${{ github.run_id }}-${{ github.run_attempt }}
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [ amd64, arm64 ]
+        cname: [ kvm, metal, aws, gcp, azure ]
     needs: base
     steps:
       - name: checkout
@@ -39,16 +43,27 @@ jobs:
           t="$(date '+%s')"
           find .build -exec touch -d "@$t" {} +
       - name: build
-        run: make -j $(nproc) --output-sync TMPDIR=/mnt
+        run: make TMPDIR=/mnt ${{ matrix.cname }}-${{ matrix.arch }}-today
       - name: list build artifacts
         run: ls -lah .build/
-      # - name: pack build artifacts
-      #   run: tar --create .build | zstd > build.tar.zstd
-      # - name: upload bulid artifacts
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: build.tar.zstd
-      #     path: build.tar.zstd
+      - name: pack build artifacts
+        run: |
+          artifact="${{ matrix.cname }}-${{ matrix.arch }}-today"
+          commit="$(git rev-parse --short HEAD)"
+          cname="$artifact-$commit"
+          mkdir "$cname"
+          cat ".build/$artifact.artifacts" | while read -r file; do
+            extension="$(sed "s/^$artifact//" <<< "$file")"
+            mv ".build/$file" "$cname/$cname$extension"
+            mv ".build/$file.log" "$cname/$cname$extension.log"
+          done
+          tar --create "$cname" | zstd > "$cname.tar.zstd"
+          echo "artifact=$cname.tar.zstd" >> "$GITHUB_ENV"
+      - name: upload bulid artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.artifact }}
+          path: ${{ env.artifact }}
   build-docker:
     runs-on: ubuntu-latest
     steps:
@@ -59,7 +74,7 @@ jobs:
       - name: setup runner
         uses: ./.github/actions/setup
       - name: build
-        run: make -j $(nproc) --output-sync TMPDIR=/mnt CONTAINER_ENGINE=docker base
+        run: make TMPDIR=/mnt CONTAINER_ENGINE=docker base
       - name: list build artifacts
         run: ls -lah .build/
   # build-debian:

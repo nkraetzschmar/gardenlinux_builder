@@ -8,8 +8,7 @@ exec 1>&2
 
 rootfs="$1"
 arch="$(chroot "$rootfs" dpkg --print-architecture)"
-# timestamp=$(garden-version --epoch "$version")
-timestamp=1577836800
+timestamp="$(date '+%s')"
 version=today
 
 rootfs_work=$(mktemp -d)
@@ -190,7 +189,6 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 	if [[ "$syslinux" = 1 ]]; then
 		# syslinux uses mtools internally, so datefudge LD_PRELOAD applying to mtools native binaries, but not to syslinux binary should be sufficient for reproducible builds
 		datefudge -s "@$timestamp" "$rootfs/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2" --library-path "$rootfs/usr/lib/x86_64-linux-gnu" "$rootfs/usr/bin/syslinux" -d syslinux -i "$file"
-		mdir -i "$file" -a -/ ::/syslinux
 	fi
 
 	# recalc size, since it might have change (e.g. from resize2fs)
