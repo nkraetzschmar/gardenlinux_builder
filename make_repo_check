@@ -10,7 +10,7 @@ version="$2"
 file=".build/.repo-$version"
 
 old_release="$([ ! -e "$file" ] || cat "$file")"
-new_release="$(curl -s "$repo/dists/$version/InRelease" | sha256sum | head -c 64)"
+new_release="$(curl -s "$repo/dists/$version/InRelease?nocache" | sha256sum | head -c 64)"
 
 [ "$old_release" = "$new_release" ] || echo -n "$new_release" > "$file"
 

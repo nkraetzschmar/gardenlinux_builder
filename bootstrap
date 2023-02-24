@@ -20,7 +20,7 @@ if [ "$#" -ge 4 ]; then
 fi
 
 mkdir /chroot
-container=lxc debootstrap "${debootstrap_opts[@]}" --arch "$arch" --variant minbase "$version" /chroot "$repo" bookworm || (cat /chroot/debootstrap/debootstrap.log; false)
+container=lxc debootstrap "${debootstrap_opts[@]}" --arch "$arch" --variant minbase --inrelease-path 'InRelease?nocache' "$version" /chroot "$repo" bookworm || (cat /chroot/debootstrap/debootstrap.log; false)
 
 apt_sources_opts=
 if [ -n "$key_file" ]; then

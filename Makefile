@@ -193,8 +193,6 @@ endif
 
 # ————————————————————————————————————————————————————————————————
 
-.NONINTERMEDIATE: .build/.repo-% .build/bootstrap-%.tar .build/native_bin-%.tar .build/%.tar .build/%.ext4 .build/%.oci .build/%.dummy .build/%.artifacts
-
 .build/.repo-%:
 	true
 
@@ -260,7 +258,7 @@ endif
 
 .build/%.raw: image .build/%.tar $(shell ./make_directory_dependency image.d) $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/image.image
 	target '$@' '$(word 2,$^)'
-	info "finalizing rootfs-$*"
+	info "building image $*"
 	script_path="$$(realpath '$(word 1,$^)')"
 	input_path="$$(realpath '$(word 2,$^)')"
 	image_d_path="$$(realpath '$(word 3,$^)')"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -Eexufo pipefail
+set -Eeufo pipefail
 
 exec 1>&2
 

@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 
-set -Eexufo pipefail
+set -Eeufo pipefail
 
 # redirect all output to stderr so only second pass output for makedisk gets written to stdout
 exec 3>&1
 exec 1>&2
 
-# thisDir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
 rootfs="$1"
-# arch="${2:-$arch}"
-arch=amd64
+arch="$(chroot "$rootfs" dpkg --print-architecture)"
 # timestamp=$(garden-version --epoch "$version")
-timestamp=0
+timestamp=1577836800
 version=today
 
 rootfs_work=$(mktemp -d)
@@ -27,18 +25,18 @@ cp -a "$rootfs/." "$rootfs_work"
 # fi
 
 # if ! grep _secureboot <<< "$fullfeatures" > /dev/null; then
-# 	machineid="$(mktemp)"
-# 	mount --rbind "${machineid}" "${rootfs_work}/etc/machine-id"
-# 	mkdir -p "$rootfs_work/boot/efi/loader/"
-# 	touch "$rootfs_work/boot/efi/loader/loader.conf"
-# 	touch "$rootfs_work/boot/efi/loader/entries.srel"
-# 	mount -t proc none "$rootfs_work/proc"
-# 	chroot "$rootfs_work" /usr/bin/env -i SYSTEMD_ESP_PATH="/boot/efi" bootctl --no-variables --make-machine-id-directory=no install
-# 	umount "$rootfs_work/proc"
-# 	echo type1 > "$rootfs_work/boot/efi/loader/entries.srel"
-# 	rm -f "${rootfs_work}/boot/efi/loader/random-seed"
-# 	umount "${rootfs_work}/etc/machine-id"
-# 	rm -f "$machineid"
+	machineid="$(mktemp)"
+	mount --rbind -o ro "${machineid}" "${rootfs_work}/etc/machine-id"
+	mkdir -p "$rootfs_work/boot/efi/loader/"
+	touch "$rootfs_work/boot/efi/loader/loader.conf"
+	touch "$rootfs_work/boot/efi/loader/entries.srel"
+	mount --rbind /proc "$rootfs_work/proc"
+	chroot "$rootfs_work" /usr/bin/env -i SYSTEMD_ESP_PATH="/boot/efi" bootctl --no-variables --make-machine-id-directory=no install
+	umount -l "$rootfs_work/proc"
+	echo type1 > "$rootfs_work/boot/efi/loader/entries.srel"
+	rm -f "${rootfs_work}/boot/efi/loader/random-seed"
+	umount "${rootfs_work}/etc/machine-id"
+	rm -f "$machineid"
 # fi
 
 fstab="$(mktemp)"
@@ -188,10 +186,12 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 		find "$data_source" -depth -mindepth 1 -delete
 	fi
 
-	# # install syslinux if extra argument given in fstab
-	# if [[ "$syslinux" = 1 ]]; then
-	# 	PATH="$PATH:$rootfs/usr/bin" datefudge -s "@$timestamp" syslinux -d syslinux -i "$file"
-	# fi
+	# install syslinux if extra argument given in fstab
+	if [[ "$syslinux" = 1 ]]; then
+		# syslinux uses mtools internally, so datefudge LD_PRELOAD applying to mtools native binaries, but not to syslinux binary should be sufficient for reproducible builds
+		datefudge -s "@$timestamp" "$rootfs/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2" --library-path "$rootfs/usr/lib/x86_64-linux-gnu" "$rootfs/usr/bin/syslinux" -d syslinux -i "$file"
+		mdir -i "$file" -a -/ ::/syslinux
+	fi
 
 	# recalc size, since it might have change (e.g. from resize2fs)
 	size=$(du -b "$file" | awk '{ padded_size = $1 + (MB - ($1 % MB) % MB); print (padded_size / MB) }' "MB=1048576")
