@@ -2,7 +2,7 @@
 
 set -eufo pipefail
 
-IFS=',' read -r -a features <<< "$1"
+IFS=',' read -r -a features <<< "$BUILDER_FEATURES"
 
 for feature in "${features[@]}"; do
 	if [ -e "/builder/features/$feature/exec.early" ]; then

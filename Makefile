@@ -48,6 +48,7 @@ CONFIG_DIR := gardenlinux
 export CONFIG_DIR
 
 DEFAULT_VERSION := $(shell '$(CONFIG_DIR)/get_version')
+COMMIT := $(shell CONFIG_DIR='$(CONFIG_DIR)' ./get_commit)
 
 # ————————————————————————————————————————————————————————————————
 
@@ -242,7 +243,7 @@ endif
 	container_env_path="$$($(CONTAINER_RUN) --rm "$$image" bash -c 'echo $$PATH')"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
 	rm -f '$@'
-	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e "PATH=/native_bin:$$container_env_path" "$$image" /builder/configure "$$features"
+	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e "PATH=/native_bin:$$container_env_path" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" "$$image" /builder/configure
 
 .build/%.tar: finalize .tmp/%.container.tar .tmp/native_bin-$$(call cname_version,$$*).volume $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/unshare.image
 	target '$@' '$(word 2,$^)'
@@ -255,7 +256,7 @@ endif
 	output_path="$$(realpath '$@')"
 	touch "$$output_path"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
-	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" "$$image" /script "$$features" || (rm "$$output_path"; false)
+	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" "$$image" /script || (rm "$$output_path"; false)
 
 .build/%.raw: image .build/%.tar $(shell ./make_directory_dependency image.d) $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/image.image
 	target '$@' '$(word 2,$^)'
@@ -268,7 +269,7 @@ endif
 	output_path="$$(realpath '$@')"
 	touch "$$output_path"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
-	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$image_d_path:/builder/image.d:ro" -v "$$features_dir_path:/builder/features:ro" "$$image" /script "$$features" || (rm "$$output_path"; false)
+	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$image_d_path:/builder/image.d:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" "$$image" /script || (rm "$$output_path"; false)
 
 .build/%.dummy:
 	target '$@'

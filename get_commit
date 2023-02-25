@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+cd "$CONFIG_DIR"
+[ -z "$(git status --porcelain 2> /dev/null)" ] && git rev-parse HEAD 2> /dev/null || echo local

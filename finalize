@@ -2,7 +2,7 @@
 
 set -eufo pipefail
 
-IFS=',' read -r -a features <<< "$1"
+IFS=',' read -r -a features <<< "$BUILDER_FEATURES"
 
 mkdir /chroot
 
