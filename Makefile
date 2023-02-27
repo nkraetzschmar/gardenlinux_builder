@@ -27,7 +27,7 @@ CONTAINER_RUN_OPTS := --net host --security-opt seccomp=unconfined --security-op
 CONTAINER_RUN := $(CONTAINER_ENGINE) container run $(CONTAINER_RUN_OPTS)
 
 else
-ifneq ($(MAKECMDGOALS),clean)
+ifneq ($(filter-out clean clean_tmp clean_cert,$(MAKECMDGOALS)),)
 $(error error: clean cannot be combined with other make targets)
 endif
 endif
@@ -258,18 +258,18 @@ endif
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
 	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" "$$image" /script || (rm "$$output_path"; false)
 
-.build/%.raw: image .build/%.tar $(shell ./make_directory_dependency image.d) $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/image.image
+.build/%.raw: image .build/%.tar $(shell ./make_directory_dependency image.d) $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/image.image cert
 	target '$@' '$(word 2,$^)'
 	info "building image $*"
 	script_path="$$(realpath '$(word 1,$^)')"
 	input_path="$$(realpath '$(word 2,$^)')"
 	image_d_path="$$(realpath '$(word 3,$^)')"
 	features_dir_path="$$(realpath '$(word 4,$^)')"
-	image="$$(cat '$|')"
+	image="$$(cat '$(word 1,$|)')"
 	output_path="$$(realpath '$@')"
 	touch "$$output_path"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
-	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$image_d_path:/builder/image.d:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" "$$image" /script || (rm "$$output_path"; false)
+	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$image_d_path:/builder/image.d:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" $(CERT_CONTAINER_OPTS) "$$image" /script || (rm "$$output_path"; false)
 
 .build/%.dummy:
 	target '$@'
@@ -290,3 +290,27 @@ endif
 # prevents match anything rule from applying to files in bulid directory
 $(shell find . -maxdepth 1 -type f) image.d $(CONFIG_DIR)/features:
 	true
+
+# ————————————————————————————————————————————————————————————————
+
+ifdef CERT_USE_KMS
+CERT_CONTAINER_OPTS := -v '$(realpath cert):/cert' $(shell env | grep '^AWS_' | sed 's/^/-e /')
+CERT_MAKE_OPTS := USE_KMS=1
+
+.tmp/aws-kms-pkcs11.image: .tmp/unshare.image
+.tmp/cert.image: .tmp/aws-kms-pkcs11.image
+else
+CERT_CONTAINER_OPTS := -v '$(realpath cert):/cert'
+CERT_MAKE_OPTS :=
+
+.tmp/cert.image: .tmp/unshare.image
+endif
+
+.PHONY: cert clean_cert
+
+cert: | .tmp/cert.image
+	image="$$(cat '$|')"
+	$(CONTAINER_RUN) --rm $(CERT_CONTAINER_OPTS) "$$image" make --silent -C /cert $(CERT_MAKE_OPTS) default
+
+clean_cert:
+	$(MAKE) --silent -C cert clean

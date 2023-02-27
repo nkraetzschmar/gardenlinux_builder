@@ -14,30 +14,6 @@ version=today
 rootfs_work=$(mktemp -d)
 cp -a "$rootfs/." "$rootfs_work"
 
-# find "$rootfs_work/var/log/" -type f -delete
-
-# if grep _selinux <<< "$fullfeatures" > /dev/null; then
-#   # SELinux 'default' policy file contexts
-#   chcon -R system_u:object_r:unlabeled_t:s0 "$rootfs_work"
-#   "$thisDir/garden-chroot" "$rootfs_work" /sbin/setfiles /etc/selinux/default/contexts/files/file_contexts /
-#   rm "$rootfs_work/.autorelabel"
-# fi
-
-# if ! grep _secureboot <<< "$fullfeatures" > /dev/null; then
-# 	machineid="$(mktemp)"
-# 	mount --rbind -o ro "${machineid}" "${rootfs_work}/etc/machine-id"
-# 	mkdir -p "$rootfs_work/boot/efi/loader/"
-# 	touch "$rootfs_work/boot/efi/loader/loader.conf"
-# 	touch "$rootfs_work/boot/efi/loader/entries.srel"
-# 	mount --rbind /proc "$rootfs_work/proc"
-# 	chroot "$rootfs_work" /usr/bin/env -i SYSTEMD_ESP_PATH="/boot/efi" bootctl --no-variables --make-machine-id-directory=no install
-# 	umount -l "$rootfs_work/proc"
-# 	echo type1 > "$rootfs_work/boot/efi/loader/entries.srel"
-# 	rm -f "${rootfs_work}/boot/efi/loader/random-seed"
-# 	umount "${rootfs_work}/etc/machine-id"
-# 	rm -f "$machineid"
-# fi
-
 fstab="$(mktemp)"
 veritytab="$(mktemp)"
 root_hash="$(mktemp)"
@@ -169,7 +145,7 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 			;;
 		"vfat")
 			make_reproducible_vfat -t "$timestamp" -h "gardenlinux:$version:partition:$target" ${uuid:+"-u"} ${uuid:+"$uuid"} ${label:+"-l"} ${label:+"$label"} "$data_source" "$file"
-			echo $file > $efi_partition
+			echo "$file" > "$efi_partition"
 			;;
 		"swap")
 			make_reproducible_swap ${uuid:+"-u"} ${uuid:+"$uuid"} ${label:+"-l"} ${label:+"$label"} "$file"
