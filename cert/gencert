@@ -2,8 +2,6 @@
 
 set -Eeufo pipefail
 
-export PKCS11_MODULE_PATH="/usr/lib/$(uname -m)-linux-gnu/pkcs11/aws_kms_pkcs11.so"
-
 conf=
 ca_base=
 algo=RSA
@@ -80,6 +78,7 @@ if [ -n "$ca_base" ]; then
 	if [ -f "$ca_base.key" ]; then
 		ca_key_params=(-CAkey "$ca_base.key")
 	elif [ -f "$ca_base.arn" ]; then
+		export PKCS11_MODULE_PATH="/usr/lib/$(uname -m)-linux-gnu/pkcs11/aws_kms_pkcs11.so"
 		engine_params+=(-engine pkcs11)
 		ca_key_params=(-CAkeyform engine -CAkey "pkcs11:token=$(basename "$(cat "$ca_base.arn")" | cut -c -32)")
 	else

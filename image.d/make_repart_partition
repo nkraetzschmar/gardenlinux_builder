@@ -2,6 +2,8 @@
 
 set -Eeufo pipefail
 
+version="$(echo "$BUILDER_CNAME" | rev | cut -d - -f 1 | rev)"
+
 mount_target=/
 fs=ext4
 options=ro
@@ -131,11 +133,12 @@ if [ "$ephemeral" = 1 ]; then
 	#!/bin/bash
 	set -ex
 
-	mkdir -p "/etc/repart.uuid"
-	[ -f "/etc/repart.uuid/$repart_uuid" ] || cat /proc/sys/kernel/random/uuid > "/etc/repart.uuid/$repart_uuid"
-	uuid="\$(cat "/etc/repart.uuid/$repart_uuid")"
+	mkdir -p "/run/repart.uuid"
+	[ -f "/run/repart.uuid/$repart_uuid" ] || cat /proc/sys/kernel/random/uuid > "/run/repart.uuid/$repart_uuid"
+	uuid="\$(cat "/run/repart.uuid/$repart_uuid")"
 
-	cat > "/etc/repart.d/1.$repart.conf" << EOF
+	mkdir -p "/run/repart.d"
+	cat > "/run/repart.d/1.$repart.conf" << EOF
 	[Partition]
 	UUID=\$uuid
 	Type=$repart_type
@@ -171,11 +174,12 @@ elif [ "$cryptsetup" = 1 ]; then
 	#!/bin/bash
 	set -ex
 
-	mkdir -p "/etc/repart.uuid"
-	[ -f "/etc/repart.uuid/$repart_uuid" ] || cat /proc/sys/kernel/random/uuid > "/etc/repart.uuid/$repart_uuid"
-	uuid="\$(cat "/etc/repart.uuid/$repart_uuid")"
+	mkdir -p "/run/repart.uuid"
+	[ -f "/run/repart.uuid/$repart_uuid" ] || cat /proc/sys/kernel/random/uuid > "/run/repart.uuid/$repart_uuid"
+	uuid="\$(cat "/run/repart.uuid/$repart_uuid")"
 
-	cat > "/etc/repart.d/1.$repart.conf" << EOF
+	mkdir -p "/run/repart.d"
+	cat > "/run/repart.d/1.$repart.conf" << EOF
 	[Partition]
 	UUID=\$uuid
 	Type=$repart_type

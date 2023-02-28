@@ -2,8 +2,6 @@
 
 set -Eeufo pipefail
 
-export PKCS11_MODULE_PATH="/usr/lib/$(uname -m)-linux-gnu/pkcs11/aws_kms_pkcs11.so"
-
 veritytab=
 cert_base="/cert/secureboot.db"
 timestamp=0
@@ -50,6 +48,8 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
+arch="$(chroot "$rootfs" dpkg --print-architecture)"
+
 initrd="$(mktemp)"
 unified_image="$(mktemp)"
 unified_image_signed="$(mktemp)"
@@ -63,13 +63,16 @@ mount --bind "$dracut_include" "$rootfs$dracut_include"
 [ ! -s "$rootfs/etc/veritytab" ]
 touch "$rootfs/etc/veritytab"
 [ -z "$veritytab" ] || mount --bind "$veritytab" "$rootfs/etc/veritytab"
-[ -d "$rootfs/proc" ] && [ -z "$(ls -A "$rootfs/proc")" ]
-mount -t proc none "$rootfs/proc"
+[ -d "$rootfs/proc" ]
+mount --rbind /proc "$rootfs/proc"
+[ -d "$rootfs/dev" ]
+mount --rbind /dev "$rootfs/dev"
 
 kernel_file=$(find "$rootfs/boot/" -name 'vmlinuz-*')
 kernel_version="${kernel_file#*-}"
 
 chroot "$rootfs" dracut \
+	--no-hostonly \
 	--force \
 	--kver "$kernel_version" \
 	--modules "bash dash systemd systemd-initrd systemd-veritysetup systemd-repart kernel-modules kernel-modules-extra terminfo udev-rules dracut-systemd base fs-lib shutdown" \
@@ -78,7 +81,8 @@ chroot "$rootfs" dracut \
 	--reproducible \
 	"$initrd"
 
-umount "$rootfs/proc"
+umount -l "$rootfs/dev"
+umount -l "$rootfs/proc"
 umount "$rootfs$initrd"
 rm "$rootfs$initrd"
 umount "$rootfs$dracut_include"
@@ -116,6 +120,7 @@ if [[ "$secureboot" = "true" ]]; then
 	if [ -f "$cert_base.key" ]; then
 		key_params=(--key "$cert_base.key")
 	elif [ -f "$cert_base.arn" ]; then
+		export PKCS11_MODULE_PATH="/usr/lib/$(uname -m)-linux-gnu/pkcs11/aws_kms_pkcs11.so"
 		key_params=(--engine pkcs11 --key "pkcs11:token=$(basename "$(cat "$cert_base.arn")" | cut -c -32)")
 	else
 		echo "neither $cert_base.key nor $cert_base.arn exists, but at least one is required" >&2

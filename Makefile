@@ -93,6 +93,7 @@ container_engine_system_df:
 		echo "warning: TMPDIR ($$TMPDIR) is not on a tmpfs, build performance might be reduced" >&2
 	fi
 	ln -s "$$(mktemp -d -t builder.XXXX)" '$@'
+	mkdir .tmp/empty_context
 	realpath '$@'
 	close_target_log
 	rm -f '$@.log'
@@ -162,9 +163,9 @@ endif
 	info "building $* container"
 	containerfile='$(word 1,$^)'
 	base_image="$$(cat '$(lastword $^)')"
-	$(CONTAINER_ENGINE) image build --file "$$containerfile" --build-arg base="$$base_image" --iidfile '$@' .
+	$(CONTAINER_ENGINE) image build --file "$$containerfile" --build-arg base="$$base_image" --iidfile '$@' .tmp/empty_context
 
-.tmp/debootstrap.image .tmp/image.image: .tmp/unshare.image
+.tmp/debootstrap.image: .tmp/unshare.image
 
 .tmp/%.image: .build/%.tar
 	target '$@' '$<'
@@ -245,18 +246,18 @@ endif
 	rm -f '$@'
 	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e "PATH=/native_bin:$$container_env_path" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" "$$image" /builder/configure
 
-.build/%.tar: finalize .tmp/%.container.tar .tmp/native_bin-$$(call cname_version,$$*).volume $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/unshare.image
+.build/%.tar: finalize .tmp/%.container.tar .tmp/native_bin-$$(call cname_version,$$*).volume $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/unshare.image cert
 	target '$@' '$(word 2,$^)'
 	info "finalizing rootfs $*"
 	script_path="$$(realpath '$(word 1,$^)')"
 	input_path="$$(realpath '$(word 2,$^)')"
 	volume="$$(cat '$(word 3,$^)')"
 	features_dir_path="$$(realpath '$(word 4,$^)')"
-	image="$$(cat '$|')"
+	image="$$(cat '$(word 1,$|)')"
 	output_path="$$(realpath '$@')"
 	touch "$$output_path"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
-	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" "$$image" /script || (rm "$$output_path"; false)
+	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" $(CERT_CONTAINER_OPTS) "$$image" /script || (rm "$$output_path"; false)
 
 .build/%.raw: image .build/%.tar $(shell ./make_directory_dependency image.d) $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/image.image cert
 	target '$@' '$(word 2,$^)'
@@ -299,18 +300,23 @@ CERT_MAKE_OPTS := USE_KMS=1
 
 .tmp/aws-kms-pkcs11.image: .tmp/unshare.image
 .tmp/cert.image: .tmp/aws-kms-pkcs11.image
+.tmp/image.image: .tmp/aws-kms-pkcs11.image
 else
 CERT_CONTAINER_OPTS := -v '$(realpath cert):/cert'
 CERT_MAKE_OPTS :=
 
 .tmp/cert.image: .tmp/unshare.image
+.tmp/image.image: .tmp/unshare.image
 endif
 
 .PHONY: cert clean_cert
 
 cert: | .tmp/cert.image
+	target '$@'
+	info "generating certificates"
 	image="$$(cat '$|')"
 	$(CONTAINER_RUN) --rm $(CERT_CONTAINER_OPTS) "$$image" make --silent -C /cert $(CERT_MAKE_OPTS) default
+	rm '$@.log'
 
 clean_cert:
 	$(MAKE) --silent -C cert clean

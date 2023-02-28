@@ -9,7 +9,7 @@ exec 1>&2
 rootfs="$1"
 arch="$(chroot "$rootfs" dpkg --print-architecture)"
 timestamp="$(date '+%s')"
-version=today
+version="$(echo "$BUILDER_CNAME" | rev | cut -d - -f 1 | rev)"
 
 rootfs_work=$(mktemp -d)
 cp -a "$rootfs/." "$rootfs_work"

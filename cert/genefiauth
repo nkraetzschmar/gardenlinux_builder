@@ -2,8 +2,6 @@
 
 set -Eeufo pipefail
 
-export PKCS11_MODULE_PATH="/usr/lib/$(uname -m)-linux-gnu/pkcs11/aws_kms_pkcs11.so"
-
 guid=
 ca_base=
 null=0
@@ -57,6 +55,7 @@ if [ -n "$ca_base" ]; then
 	if [ -f "$ca_base.key" ]; then
 		ca_key_params=(-k "$ca_base.key")
 	elif [ -f "$ca_base.arn" ]; then
+		export PKCS11_MODULE_PATH="/usr/lib/$(uname -m)-linux-gnu/pkcs11/aws_kms_pkcs11.so"
 		ca_key_params=(-e pkcs11 -k "pkcs11:token=$(basename "$(cat "$ca_base.arn")" | cut -c -32)")
 	else
 		echo "neither $ca_base.key nor $ca_base.arn exists, but at least one is required" >&2
