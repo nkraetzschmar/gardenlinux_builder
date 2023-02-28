@@ -188,7 +188,7 @@ elif [ "$cryptsetup" = 1 ]; then
 	EOF
 
 	dev_path="/dev/disk/by-partuuid/\$uuid"
-	systemd_dev_dependency="blockdev-settle@\$(systemd-escape \${dev_path#/}).service"
+	systemd_dev_dependency="blockdev-settle@\$(systemd-escape "\${dev_path#/}").service"
 	cat > "\$2/cryptsetup-$sysroot_target_escaped.service" << EOF
 	[Unit]
 	After=systemd-repart.service
@@ -235,7 +235,7 @@ else
 	EOF
 
 	dev_path="/dev/disk/by-partuuid/$repart_uuid"
-	systemd_dev_dependency="blockdev-settle@$(systemd-escape ${dev_path#/}).service"
+	systemd_dev_dependency="blockdev-settle@$(systemd-escape "${dev_path#/}").service"
 	mkdir -p "$target/etc/systemd/system/"
 	cat > "$target/etc/systemd/system/$sysroot_mount_unit" <<-EOF
 	[Unit]

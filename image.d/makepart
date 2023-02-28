@@ -141,6 +141,7 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 
 	case "$fs" in
 		"ext4")
+			#shellcheck disable=SC2046
 			make_reproducible_ext4 -t "$timestamp" -h "gardenlinux:$version:partition:$target" ${uuid:+"-u"} ${uuid:+"$uuid"} ${label:+"-l"} ${label:+"$label"} -q $([ "$resize" = 0 ] || echo "-m") -p 16 "$data_source" "$file"
 			;;
 		"vfat")
@@ -179,6 +180,7 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 	if [[ "$verity" = 1 ]]; then
 		verity_uuid=$(echo "gardenlinux:$version:verity_uuid:$fs:$target" | uuid_hash)
 		verity_salt=$(echo "gardenlinux:$version:verity_salt:$fs:$target" | sha256sum | cut -c -64)
+		#shellcheck disable=SC2015
 		hash_file=$([[ "$depth" = 0 ]] && echo "$root_hash" || mktemp)
 		verity_file="$file.verity"
 		veritysetup format --uuid "$verity_uuid" --salt "$verity_salt" --data-block-size=4096 --hash-block-size=4096 --root-hash-file "$hash_file" "$file" "$verity_file"
@@ -192,6 +194,7 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 		part_num=$((part_num + 1))
 		make_repart_partition -g linux --def-only "$part_num" "$dracut_include"
 		if [[ "$depth" != 0 ]]; then
+			#shellcheck disable=SC2001
 			verity_name="verity$(sed 's|/|_|' <<< "$target")"
 			echo "$verity_name" "$source" "UUID=$verity_uuid" "$hash" >> "$veritytab"
 			echo "/dev/mapper/$verity_name" "$target" "$fs" "$options" "$dump" "$pass" >> "$fstab"
@@ -229,7 +232,7 @@ if [[ -z "$(cat "$root_hash")" ]]; then
 	fi
 
 	# enable verity if the root partition is writable, but any other partition has verity enabled, most likely /usr
-	if [[ ! -z "$(cat "$veritytab")" ]] && [ ! -s "$secureboot_partitions" ]; then
+	if [ -n "$(cat "$veritytab")" ] && [ ! -s "$secureboot_partitions" ]; then
 		makesecureboot -r "$rootfs" -c "$cmdline" -v "$veritytab" -i "$dracut_include" -t "$timestamp" -s "false" < "$efi_partition"
 	fi
 else

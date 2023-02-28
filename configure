@@ -22,6 +22,7 @@ done
 dir="$(mktemp -d)"
 
 pkg_include_processed="$(mktemp)"
+#shellcheck disable=SC2123,SC2030,SC2034
 (
 	cd "$dir"
 	arch="$(dpkg --print-architecture)"
@@ -34,6 +35,7 @@ pkg_include_processed="$(mktemp)"
 rm "$pkg_include"
 
 pkg_exclude_processed="$(mktemp)"
+#shellcheck disable=SC2123,SC2030,SC2034
 (
 	cd "$dir"
 	arch="$(dpkg --print-architecture)"
@@ -51,7 +53,9 @@ pkg_list="$(mktemp)"
 comm -2 -3 "$pkg_include_processed" "$pkg_exclude_processed" > "$pkg_list"
 rm "$pkg_include_processed" "$pkg_exclude_processed"
 
-INITRD=No DEBIAN_FRONTEND=noninteractive apt-get install -o DPkg::Path="$PATH" -y --no-install-recommends $(cat "$pkg_list")
+mapfile -t pkg_array < "$pkg_list"
+#shellcheck disable=SC2031
+INITRD=No DEBIAN_FRONTEND=noninteractive apt-get install -o DPkg::Path="$PATH" -y --no-install-recommends "${pkg_array[@]}"
 rm "$pkg_list"
 
 for feature in "${features[@]}"; do

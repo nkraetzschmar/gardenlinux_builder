@@ -14,7 +14,7 @@ ENV{DEVTYPE}=="disk", ENV{ID_PART_TABLE_UUID}=="?*", SYMLINK+="disk/by-parttable
 EOF
 
 dev_path="/dev/disk/by-parttableuuid/$uuid"
-systemd_dev_dependency="$(systemd-escape ${dev_path#/}).device"
+systemd_dev_dependency="$(systemd-escape "${dev_path#/}").device"
 
 mkdir -p "$target/etc/systemd/system/systemd-repart.service.d"
 cat > "$target/etc/systemd/system/systemd-repart.service.d/override.conf" << EOF

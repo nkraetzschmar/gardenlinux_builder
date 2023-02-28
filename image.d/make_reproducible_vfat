@@ -37,6 +37,5 @@ shift 2
 
 uuid=${uuid:-$(echo -n "$hash_prefix:uuid" | sha256sum | cut -c -8)}
 datefudge -s "@$timestamp" mformat -i "$target" -F -N "$uuid" ${label:+"-v"} ${label:+"$label"} ::
-pushd "$source"
-	datefudge -s "@$timestamp" mcopy -i "$target" -s -p $(ls -A) ::
-popd
+mapfile -t files < <(find "$source" -mindepth 1 -maxdepth 1)
+datefudge -s "@$timestamp" mcopy -i "$target" -s -p "${files[@]}" ::

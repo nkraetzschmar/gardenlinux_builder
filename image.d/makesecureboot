@@ -120,7 +120,8 @@ if [[ "$secureboot" = "true" ]]; then
 	if [ -f "$cert_base.key" ]; then
 		key_params=(--key "$cert_base.key")
 	elif [ -f "$cert_base.arn" ]; then
-		export PKCS11_MODULE_PATH="/usr/lib/$(uname -m)-linux-gnu/pkcs11/aws_kms_pkcs11.so"
+		PKCS11_MODULE_PATH="/usr/lib/$(uname -m)-linux-gnu/pkcs11/aws_kms_pkcs11.so"
+		export PKCS11_MODULE_PATH
 		key_params=(--engine pkcs11 --key "pkcs11:token=$(basename "$(cat "$cert_base.arn")" | cut -c -32)")
 	else
 		echo "neither $cert_base.key nor $cert_base.arn exists, but at least one is required" >&2
@@ -142,9 +143,9 @@ while read -r partition_file; do
 	if [[ "$arch" = "amd64" ]] && [[ ! "$secureboot" = "true" ]]; then
 	# add roothash to legacy boot kernel cmdline
 		syslinux=$(mktemp)
-		mcopy -i $partition_file -p ::/syslinux/syslinux.cfg "$syslinux"
-		sed -i "s/root=[^ ]*/$(echo ${cmdline} | cut -d ' ' -f 1)/g" "$syslinux"
-		mcopy -i $partition_file -po "$syslinux" ::/syslinux/syslinux.cfg
+		mcopy -i "$partition_file" -p ::/syslinux/syslinux.cfg "$syslinux"
+		sed -i "s/root=[^ ]*/$(echo "$cmdline" | cut -d ' ' -f 1)/g" "$syslinux"
+		mcopy -i "$partition_file" -po "$syslinux" ::/syslinux/syslinux.cfg
 	# copy initrd.img for legacy boot when secureboot feature is not enabled
 		datefudge -s "@$timestamp" mcopy -i "$partition_file" -o -p "$initrd" "::/Default/${kernel_version}/initrd.img-${kernel_version}"
 	fi

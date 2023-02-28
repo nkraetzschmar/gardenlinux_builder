@@ -52,7 +52,7 @@ COMMIT := $(shell CONFIG_DIR='$(CONFIG_DIR)' ./get_commit)
 
 # ————————————————————————————————————————————————————————————————
 
-.PHONY: all all_bootstrap native native_bootstrap none clean clean_tmp container_engine_system_df
+.PHONY: all all_bootstrap native native_bootstrap none clean clean_tmp container_engine_system_df shellcheck
 
 all: kvm-amd64 kvm-arm64 metal-amd64 metal-arm64 container-amd64 container-arm64
 native: kvm-$(NATIVE_ARCH) metal-$(NATIVE_ARCH) container-$(NATIVE_ARCH)
@@ -78,6 +78,14 @@ clean_tmp:
 
 container_engine_system_df:
 	$(CONTAINER_ENGINE) system df -v
+
+shellcheck:
+	git ls-files | while read file; do
+		if [ -f "$$file" ] && head -n 1 "$$file" | grep '^#!.*sh$$' &> /dev/null; then
+			printf 'checking %s\n' "$$file"
+			shellcheck "$$file"
+		fi
+	done
 
 # ————————————————————————————————————————————————————————————————
 
