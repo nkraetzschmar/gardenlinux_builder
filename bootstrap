@@ -20,7 +20,7 @@ if [ "$#" -ge 4 ]; then
 fi
 
 mkdir /chroot
-container=lxc debootstrap "${debootstrap_opts[@]}" --arch "$arch" --variant minbase --inrelease-path 'InRelease?nocache' "$version" /chroot "$repo" bookworm || (cat /chroot/debootstrap/debootstrap.log; false)
+container=lxc debootstrap "${debootstrap_opts[@]}" --arch "$arch" --variant minbase "$version" /chroot "$repo" bookworm || (cat /chroot/debootstrap/debootstrap.log; false)
 
 apt_sources_opts=
 if [ -n "$key_file" ]; then
@@ -32,4 +32,4 @@ fi
 echo "deb $apt_sources_opts $repo $version main" > /chroot/etc/apt/sources.list
 
 find /chroot/proc /chroot/sys /chroot/dev /chroot/run /chroot/tmp -mindepth 1 -delete
-tar --create --sort name --xattrs --xattrs-include '*' --transform 's|^\./||' --directory /chroot . > /output
+tar --create --sort name --xattrs --xattrs-include 'security.*' --numeric-owner --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime --transform 's|^\./||' --directory /chroot . > /output

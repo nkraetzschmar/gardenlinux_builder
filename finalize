@@ -9,7 +9,7 @@ mkdir /chroot
 # tmpfs is required to allow setting security xattrs in user namespace
 mount -t tmpfs tmpfs /chroot
 
-tar --extract --xattrs --xattrs-include '*' --directory /chroot < /input
+tar --extract --xattrs --xattrs-include 'security.*' --directory /chroot < /input
 
 rm -rf /chroot/builder
 
@@ -27,4 +27,5 @@ umount /chroot/native_bin
 rmdir /chroot/native_bin
 umount -l /chroot/proc
 
-tar --create --sort name --xattrs --xattrs-include '*' --transform 's|^\./||' --directory /chroot . > /output
+find /chroot/proc /chroot/sys /chroot/dev /chroot/run /chroot/tmp -mindepth 1 -delete
+tar --create --mtime="@$BUILDER_TIMESTAMP" --sort name --xattrs --xattrs-include 'security.*' --numeric-owner --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime --transform 's|^\./||' --directory /chroot . > /output

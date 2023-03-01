@@ -8,10 +8,9 @@ exec 1>&2
 
 rootfs="$1"
 arch="$(chroot "$rootfs" dpkg --print-architecture)"
-timestamp="$(date '+%s')"
-version="$(echo "$BUILDER_CNAME" | rev | cut -d - -f 1 | rev)"
 
 rootfs_work=$(mktemp -d)
+mount -t tmpfs tmpfs "$rootfs_work"
 cp -a "$rootfs/." "$rootfs_work"
 
 fstab="$(mktemp)"
@@ -141,11 +140,21 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 
 	case "$fs" in
 		"ext4")
+			# mke2fs sets the ext4 superblock s_flags field to EXT2_FLAGS_SIGNED_HASH or EXT2_FLAGS_UNSIGNED_HASH depending on architecture, so we need to use target architecture e2fsprogs, not native ones
+			[ ! -e "$rootfs/builder" ]
+			mkdir "$rootfs/builder"
+			mount --rbind --make-rslave /builder "$rootfs/builder"
+			mount --rbind --make-rslave /tmp "$rootfs/tmp"
+			mount --rbind --make-rslave /proc "$rootfs/proc"
 			#shellcheck disable=SC2046
-			make_reproducible_ext4 -t "$timestamp" -h "gardenlinux:$version:partition:$target" ${uuid:+"-u"} ${uuid:+"$uuid"} ${label:+"-l"} ${label:+"$label"} -q $([ "$resize" = 0 ] || echo "-m") -p 16 "$data_source" "$file"
+			chroot "$rootfs" make_reproducible_ext4 -t "$BUILDER_TIMESTAMP" -h "gardenlinux:$BUILDER_VERSION:partition:$target" ${uuid:+"-u"} ${uuid:+"$uuid"} ${label:+"-l"} ${label:+"$label"} -q $([ "$resize" = 0 ] || echo "-m") -p 16 "$data_source" "$file"
+			umount -l "$rootfs/proc"
+			umount -l "$rootfs/tmp"
+			umount -l "$rootfs/builder"
+			rmdir "$rootfs/builder"
 			;;
 		"vfat")
-			make_reproducible_vfat -t "$timestamp" -h "gardenlinux:$version:partition:$target" ${uuid:+"-u"} ${uuid:+"$uuid"} ${label:+"-l"} ${label:+"$label"} "$data_source" "$file"
+			make_reproducible_vfat -t "$BUILDER_TIMESTAMP" -h "gardenlinux:$BUILDER_VERSION:partition:$target" ${uuid:+"-u"} ${uuid:+"$uuid"} ${label:+"-l"} ${label:+"$label"} "$data_source" "$file"
 			echo "$file" > "$efi_partition"
 			;;
 		"swap")
@@ -165,7 +174,7 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 	# install syslinux if extra argument given in fstab
 	if [[ "$syslinux" = 1 ]]; then
 		# syslinux uses mtools internally, so datefudge LD_PRELOAD applying to mtools native binaries, but not to syslinux binary should be sufficient for reproducible builds
-		datefudge -s "@$timestamp" "$rootfs/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2" --library-path "$rootfs/usr/lib/x86_64-linux-gnu" "$rootfs/usr/bin/syslinux" -d syslinux -i "$file"
+		datefudge -s "@$BUILDER_TIMESTAMP" "$rootfs/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2" --library-path "$rootfs/usr/lib/x86_64-linux-gnu" "$rootfs/usr/bin/syslinux" -d syslinux -i "$file"
 	fi
 
 	# recalc size, since it might have change (e.g. from resize2fs)
@@ -178,8 +187,8 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 	pass=$( ([[ "$(cut -c 1 <<< "$target")" != "/" ]] && echo 0) || ([[ "$target" = "/" ]] && echo 1) || echo 2)
 
 	if [[ "$verity" = 1 ]]; then
-		verity_uuid=$(echo "gardenlinux:$version:verity_uuid:$fs:$target" | uuid_hash)
-		verity_salt=$(echo "gardenlinux:$version:verity_salt:$fs:$target" | sha256sum | cut -c -64)
+		verity_uuid=$(echo "gardenlinux:$BUILDER_VERSION:verity_uuid:$fs:$target" | uuid_hash)
+		verity_salt=$(echo "gardenlinux:$BUILDER_VERSION:verity_salt:$fs:$target" | sha256sum | cut -c -64)
 		#shellcheck disable=SC2015
 		hash_file=$([[ "$depth" = 0 ]] && echo "$root_hash" || mktemp)
 		verity_file="$file.verity"
@@ -200,7 +209,7 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
 			echo "/dev/mapper/$verity_name" "$target" "$fs" "$options" "$dump" "$pass" >> "$fstab"
 		fi
 	else
-		part_uuid=$(echo "gardenlinux:$version:part_uuid:$source" | uuid_hash)
+		part_uuid=$(echo "gardenlinux:$BUILDER_VERSION:part_uuid:$source" | uuid_hash)
 		if [ "$is_final_partition" = 1 ]; then
 			[ ! -s "$final_partition" ]
 			echo -e "$part_uuid\t$type\t$size\t$syslinux\t$file\t$label" >> "$final_partition"
@@ -217,10 +226,11 @@ sed 's/#.*//;/^[[:space:]]*$/d' \
   done
 
 rmdir "$bind_mounts"
+umount "$rootfs_work"
 rmdir "$rootfs_work"
 
 if [[ -n "$(find "$dracut_include/etc/repart.d/" -name "1.*.conf")" ]] || [[ "$(find "$dracut_include/etc/systemd/system-generators" -name "repart-*")" ]]; then
-	disk_uuid=$(echo "gardenlinux:$version:disk_uuid" | uuid_hash)
+	disk_uuid=$(echo "gardenlinux:$BUILDER_VERSION:disk_uuid" | uuid_hash)
 	make_repart_disk "$disk_uuid" "$dracut_include"
 fi
 
@@ -233,18 +243,18 @@ if [[ -z "$(cat "$root_hash")" ]]; then
 
 	# enable verity if the root partition is writable, but any other partition has verity enabled, most likely /usr
 	if [ -n "$(cat "$veritytab")" ] && [ ! -s "$secureboot_partitions" ]; then
-		makesecureboot -r "$rootfs" -c "$cmdline" -v "$veritytab" -i "$dracut_include" -t "$timestamp" -s "false" < "$efi_partition"
+		makesecureboot -r "$rootfs" -c "$cmdline" -v "$veritytab" -i "$dracut_include" -t "$BUILDER_TIMESTAMP" -s "false" < "$efi_partition"
 	fi
 else
 	cmdline="roothash=$(cat "$root_hash") root=/dev/mapper/root $cmdline"
 
 	if [ ! -s "$secureboot_partitions" ]; then
-		makesecureboot -r "$rootfs" -c "$cmdline" -v "$veritytab" -i "$dracut_include" -t "$timestamp" -s "false" < "$efi_partition"
+		makesecureboot -r "$rootfs" -c "$cmdline" -v "$veritytab" -i "$dracut_include" -t "$BUILDER_TIMESTAMP" -s "false" < "$efi_partition"
 	fi
 fi
 
 if [ -s "$secureboot_partitions" ]; then
-	makesecureboot -r "$rootfs" -c "$cmdline" -v "$veritytab" -i "$dracut_include" -t "$timestamp" < "$secureboot_partitions"
+	makesecureboot -r "$rootfs" -c "$cmdline" -v "$veritytab" -i "$dracut_include" -t "$BUILDER_TIMESTAMP" < "$secureboot_partitions"
 fi
 
 cat "$partitions" "$final_partition" >&3

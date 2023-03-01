@@ -71,7 +71,8 @@ mount --rbind /dev "$rootfs/dev"
 kernel_file=$(find "$rootfs/boot/" -name 'vmlinuz-*')
 kernel_version="${kernel_file#*-}"
 
-chroot "$rootfs" dracut \
+unshare --user --map-root-user --mount -- bash -c 'mount -t tmpfs tmpfs '"$rootfs/var/tmp"' && mount -t tmpfs none /sys && mount --bind /usr/bin/false /usr/bin/systemd-detect-virt && "$@"' -- \
+chroot "$rootfs" env dracut \
 	--no-hostonly \
 	--force \
 	--kver "$kernel_version" \

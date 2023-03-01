@@ -37,7 +37,7 @@ PYTHON_DEPENDENCIES := pyyaml networkx
 CONTAINER_BASE_IMAGE := docker.io/debian:bookworm
 
 NATIVE_ARCH := $(shell ./get_arch)
-NATIVE_PKGS := bash dash dpkg grep mawk policycoreutils sed tar gzip xz-utils
+NATIVE_PKGS := bash dash dpkg grep mawk policycoreutils sed tar util-linux gzip xz-utils
 
 ifndef REPO
 REPO := http://repo.gardenlinux.io/gardenlinux
@@ -252,7 +252,13 @@ endif
 	container_env_path="$$($(CONTAINER_RUN) --rm "$$image" bash -c 'echo $$PATH')"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
 	rm -f '$@'
-	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e "PATH=/native_bin:$$container_env_path" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" "$$image" /builder/configure
+	BUILDER_CNAME='$*'
+	BUILDER_VERSION='$(call cname_version,$*)'
+	BUILDER_TIMESTAMP="$$($(CONFIG_DIR)/get_timestamp "$$BUILDER_VERSION")"
+	BUILDER_COMMIT='$(COMMIT)'
+	BUILDER_FEATURES="$$features"
+	export BUILDER_CNAME BUILDER_VERSION BUILDER_TIMESTAMP BUILDER_COMMIT BUILDER_FEATURES
+	$(CONTAINER_RUN) --cidfile '$@' -v "$$configure_path:/builder/configure:ro" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e "PATH=/native_bin:$$container_env_path" -e BUILDER_CNAME -e BUILDER_VERSION -e BUILDER_TIMESTAMP -e BUILDER_COMMIT -e BUILDER_FEATURES "$$image" /builder/configure
 
 .build/%.tar: finalize .tmp/%.container.tar .tmp/native_bin-$$(call cname_version,$$*).volume $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/unshare.image cert
 	target '$@' '$(word 2,$^)'
@@ -265,7 +271,13 @@ endif
 	output_path="$$(realpath '$@')"
 	touch "$$output_path"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
-	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" $(CERT_CONTAINER_OPTS) "$$image" /script || (rm "$$output_path"; false)
+	BUILDER_CNAME='$*'
+	BUILDER_VERSION='$(call cname_version,$*)'
+	BUILDER_TIMESTAMP="$$($(CONFIG_DIR)/get_timestamp "$$BUILDER_VERSION")"
+	BUILDER_COMMIT='$(COMMIT)'
+	BUILDER_FEATURES="$$features"
+	export BUILDER_CNAME BUILDER_VERSION BUILDER_TIMESTAMP BUILDER_COMMIT BUILDER_FEATURES
+	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$volume:/native_bin:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME -e BUILDER_VERSION -e BUILDER_TIMESTAMP -e BUILDER_COMMIT -e BUILDER_FEATURES $(CERT_CONTAINER_OPTS) "$$image" /script || (rm "$$output_path"; false)
 
 .build/%.raw: image .build/%.tar $(shell ./make_directory_dependency image.d) $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') | .tmp/image.image cert
 	target '$@' '$(word 2,$^)'
@@ -278,7 +290,13 @@ endif
 	output_path="$$(realpath '$@')"
 	touch "$$output_path"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
-	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$image_d_path:/builder/image.d:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME='$*' -e BUILDER_COMMIT='$(COMMIT)' -e BUILDER_FEATURES="$$features" $(CERT_CONTAINER_OPTS) "$$image" /script || (rm "$$output_path"; false)
+	BUILDER_CNAME='$*'
+	BUILDER_VERSION='$(call cname_version,$*)'
+	BUILDER_TIMESTAMP="$$($(CONFIG_DIR)/get_timestamp "$$BUILDER_VERSION")"
+	BUILDER_COMMIT='$(COMMIT)'
+	BUILDER_FEATURES="$$features"
+	export BUILDER_CNAME BUILDER_VERSION BUILDER_TIMESTAMP BUILDER_COMMIT BUILDER_FEATURES
+	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$image_d_path:/builder/image.d:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME -e BUILDER_VERSION -e BUILDER_TIMESTAMP -e BUILDER_COMMIT -e BUILDER_FEATURES $(CERT_CONTAINER_OPTS) "$$image" /script || (rm "$$output_path"; false)
 
 .build/%.dummy:
 	target '$@'

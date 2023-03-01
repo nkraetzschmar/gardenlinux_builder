@@ -2,8 +2,6 @@
 
 set -Eeufo pipefail
 
-version="$(echo "$BUILDER_CNAME" | rev | cut -d - -f 1 | rev)"
-
 mount_target=/
 fs=ext4
 options=ro
@@ -79,7 +77,7 @@ target="$3"
 [ -d "$source" ]
 [ -d "$target" ]
 
-repart_uuid="$(echo "gardenlinux:$version:repart:$mount_target:$fs" | uuid_hash)"
+repart_uuid="$(echo "gardenlinux:$BUILDER_VERSION:repart:$mount_target:$fs" | uuid_hash)"
 
 sysroot_target="/sysroot${mount_target%/}"
 sysroot_target_escaped="$(systemd-escape "${sysroot_target#/}")"
@@ -149,7 +147,7 @@ if [ "$ephemeral" = 1 ]; then
 	EOF
 
 	dev_path="/dev/disk/by-partuuid/\$uuid"
-	systemd_dev_dependency="blockdev-settle@\$(systemd-escape \${dev_path#/}).service"
+	systemd_dev_dependency="blockdev-settle@\$(systemd-escape "\${dev_path#/}").service"
 	cat > "\$2/$sysroot_mount_unit" << EOF
 	[Unit]
 	Before=initrd-root-fs.target
