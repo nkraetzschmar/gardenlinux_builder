@@ -24,7 +24,7 @@ jobs:
     strategy:
       matrix:
         arch: [ amd64, arm64 ]
-        cname: [ kvm, kvm_secureboot, kvm_readonly_secureboot, metal, metal_secureboot, metal_readonly_secureboot, aws, gcp, azure ]
+        cname: [ kvm, kvm_secureboot, kvm_readonly_secureboot, metal, metal_secureboot, metal_readonly_secureboot, aws, gcp, azure, ali, firecracker ]
     needs: base
     steps:
       - name: checkout

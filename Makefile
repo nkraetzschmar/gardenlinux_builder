@@ -54,8 +54,10 @@ COMMIT := $(shell CONFIG_DIR='$(CONFIG_DIR)' ./get_commit)
 
 .PHONY: all all_bootstrap native native_bootstrap none clean clean_tmp container_engine_system_df shellcheck
 
-all: kvm-amd64 kvm-arm64 metal-amd64 metal-arm64 container-amd64 container-arm64
-native: kvm-$(NATIVE_ARCH) metal-$(NATIVE_ARCH) container-$(NATIVE_ARCH)
+PLATFORMS := kvm kvm_secureboot kvm_readonly_secureboot metal metal_secureboot metal_readonly_secureboot aws gcp azure ali firecracker
+
+all: $(foreach platform,$(PLATFORMS),$(platform)-amd64 $(platform)-arm64)
+native: $(foreach platform,$(PLATFORMS),$(platform)-$(NATIVE_ARCH))
 
 none:
 
@@ -298,9 +300,32 @@ endif
 	export BUILDER_CNAME BUILDER_VERSION BUILDER_TIMESTAMP BUILDER_COMMIT BUILDER_FEATURES
 	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/input:ro" -v "$$output_path:/output" -v "$$image_d_path:/builder/image.d:ro" -v "$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME -e BUILDER_VERSION -e BUILDER_TIMESTAMP -e BUILDER_COMMIT -e BUILDER_FEATURES $(CERT_CONTAINER_OPTS) "$$image" /script || (rm "$$output_path"; false)
 
-.build/%.dummy:
-	target '$@'
-	echo '$@'
+# using a more generic .build/% pattern rule won't work here, because make would consider it for the .build/%.artifacts file, thus, despite not using it, marking it as in_use (make-3.75/implicit.c:312) and therefore skipping it in all dependencies to avoid recursion (make-3.75/implicit.c:188)
+define artifact_template =
+$1: $$$$(shell PYTHON='$$(PYTHON)' CONFIG_DIR='$$(CONFIG_DIR)' ./make_get_image_dependencies '$$$$@') $$(shell ./make_directory_dependency image.d) $$(shell ./make_directory_dependency '$$(CONFIG_DIR)/features') | .tmp/image.image cert
+	target '$$@' '$$(word 2,$$^)'
+	info "building image $$$$(basename '$$@')"
+	script_path="$$$$(realpath '$$(word 1,$$^)')"
+	input_path="$$$$(realpath '$$(word 2,$$^)')"
+	image_d_path="$$$$(realpath '$$(word 3,$$^)')"
+	features_dir_path="$$$$(realpath '$$(word 4,$$^)')"
+	image="$$$$(cat '$$(word 1,$$|)')"
+	output_path="$$$$(realpath '$$@')"
+	touch "$$$$output_path"
+	artifact='$$*'
+	extension="$$$$(grep -E -o '(\.[a-z][a-zA-Z0-9\-_]*)*$$$$' <<< "$$$$artifact")"
+	cname="$$$${artifact%"$$$$extension"}"
+	features="$$$$($$(PYTHON) parse_features --feature-dir '$$(CONFIG_DIR)/features' --cname "$$$$cname" features)"
+	BUILDER_CNAME="$$$$cname"
+	BUILDER_VERSION="$$$$($$(PYTHON) parse_features --feature-dir '$$(CONFIG_DIR)/features' --cname "$$$$cname" version)"
+	BUILDER_TIMESTAMP="$$$$($$(CONFIG_DIR)/get_timestamp "$$$$BUILDER_VERSION")"
+	BUILDER_COMMIT='$$(COMMIT)'
+	BUILDER_FEATURES="$$$$features"
+	export BUILDER_CNAME BUILDER_VERSION BUILDER_TIMESTAMP BUILDER_COMMIT BUILDER_FEATURES
+	$$(CONTAINER_RUN) --rm -v "$$$$script_path:/script:ro" -v "$$$$input_path:/input:ro" -v "$$$$output_path:/output" -v "$$$$image_d_path:/builder/image.d:ro" -v "$$$$features_dir_path:/builder/features:ro" -e BUILDER_CNAME -e BUILDER_VERSION -e BUILDER_TIMESTAMP -e BUILDER_COMMIT -e BUILDER_FEATURES $$(CERT_CONTAINER_OPTS) "$$$$image" /script || (rm "$$$$output_path"; false)
+endef
+
+$(foreach artifact_rule,$(shell CONFIG_DIR='$(CONFIG_DIR)' ./make_get_artifact_rules),$(eval $(call artifact_template,$(artifact_rule))))
 
 .build/%.artifacts: $$(shell PYTHON='$(PYTHON)' CONTAINER_ARCHIVE_FORMAT='$(CONTAINER_ARCHIVE_FORMAT)' CONFIG_DIR='$(CONFIG_DIR)' ./make_list_build_artifacts '$$*')
 	target '$@'
@@ -315,7 +340,7 @@ endif
 	true
 
 # prevents match anything rule from applying to files in bulid directory
-$(shell find . -maxdepth 1 -type f) image.d $(CONFIG_DIR)/features:
+$(shell find . -maxdepth 1 -type f) image.d $(CONFIG_DIR)/features $(shell find $(CONFIG_DIR)/features -name 'convert.*' -o -name 'image.*'):
 	true
 
 # ————————————————————————————————————————————————————————————————

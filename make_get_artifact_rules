@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+shopt -s nullglob
+
+rules=()
+
+for feature in "$CONFIG_DIR/features/"*; do
+	for i in "$feature/"{image,convert}.*; do
+		extension="$(grep -E -o '(\.[a-z][a-zA-Z0-9\-_]*)*$' <<< "$i")"
+		[ "$extension" = ".container_archive" ] || rules+=(".build/%$extension")
+	done
+done
+
+echo "${rules[@]}"

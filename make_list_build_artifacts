@@ -1,13 +1,26 @@
 #!/usr/bin/env bash
 
-set -eufo pipefail
+set -euo pipefail
+shopt -s nullglob
 
 cname="$1"
 
-platform="$($PYTHON parse_features --feature-dir "$CONFIG_DIR/features" --cname "$cname" platforms)"
+IFS=',' read -r -a features < <($PYTHON parse_features --feature-dir "$CONFIG_DIR/features" --cname "$cname" features)
 
-case "$platform" in
-	"") echo ".build/$cname.tar" ;;
-	"container") echo ".build/$cname.$CONTAINER_ARCHIVE_FORMAT" ;;
-	*) echo ".build/$cname.raw" ;;
-esac
+artifacts=(".build/$cname.tar")
+
+for feature in "${features[@]}"; do
+	for i in "$CONFIG_DIR/features/$feature/"{image,convert}.*; do
+		extension="$(grep -E -o '(\.[a-z][a-zA-Z0-9\-_]*)*$' <<< "$i")"
+		if [ "$extension" = ".container_archive" ]; then
+			extension=".$CONTAINER_ARCHIVE_FORMAT"
+		fi
+		artifacts+=(".build/$cname$extension")
+	done
+done
+
+if [ "${#artifacts[@]}" = 0 ] && [ -n "$($PYTHON parse_features --feature-dir "$CONFIG_DIR/features" --cname "$cname" platforms)" ]; then
+	artifacts+=(".build/$cname.raw")
+fi
+
+echo "${artifacts[@]}"
