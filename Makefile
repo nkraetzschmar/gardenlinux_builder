@@ -23,7 +23,7 @@ CONTAINER_ARCHIVE_FORMAT := docker
 endif
 endif
 
-CONTAINER_RUN_OPTS := --net host --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt label=disable
+CONTAINER_RUN_OPTS := --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt label=disable
 CONTAINER_RUN := $(CONTAINER_ENGINE) container run $(CONTAINER_RUN_OPTS)
 
 else
@@ -52,12 +52,14 @@ COMMIT := $(shell CONFIG_DIR='$(CONFIG_DIR)' ./get_commit)
 
 # ————————————————————————————————————————————————————————————————
 
-.PHONY: all all_bootstrap native native_bootstrap none clean clean_tmp container_engine_system_df shellcheck
+.PHONY: all_tests all native_tests native none clean clean_tmp container_engine_system_df shellcheck
 
 PLATFORMS := kvm kvm_secureboot kvm_readonly_secureboot metal metal_secureboot metal_readonly_secureboot aws gcp azure ali firecracker
 
+all_tests: $(foreach platform,$(PLATFORMS),test($(platform)-amd64) test($(platform)-arm64))
 all: $(foreach platform,$(PLATFORMS),$(platform)-amd64 $(platform)-arm64)
-native: $(foreach platform,$(PLATFORMS),$(platform)-$(NATIVE_ARCH))
+native_tests: $(foreach platform,$(PLATFORMS),test($(platform)-$(NATIVE_ARCH)))
+native: $(foreach platform,$(PLATFORMS),test($(platform)-$(NATIVE_ARCH)))
 
 none:
 
@@ -176,6 +178,7 @@ endif
 	$(CONTAINER_ENGINE) image build --file "$$containerfile" --build-arg base="$$base_image" --iidfile '$@' .tmp/empty_context
 
 .tmp/debootstrap.image: .tmp/unshare.image
+.tmp/test.image: .tmp/unshare.image
 
 .tmp/%.image: .build/%.tar
 	target '$@' '$<'
@@ -336,12 +339,27 @@ $(foreach artifact_rule,$(shell CONFIG_DIR='$(CONFIG_DIR)' ./make_get_artifact_r
 
 # ————————————————————————————————————————————————————————————————
 
-%: .build/$$(shell $(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --default-arch '$$(NATIVE_ARCH)' --default-version '$$(DEFAULT_VERSION)' --cname '$$*').artifacts
+%: .build/$$(shell $$(PYTHON) parse_features --feature-dir '$$(CONFIG_DIR)/features' --default-arch '$$(NATIVE_ARCH)' --default-version '$$(DEFAULT_VERSION)' --cname '$$*').artifacts
 	true
 
 # prevents match anything rule from applying to files in bulid directory
-$(shell find . -maxdepth 1 -type f) image.d $(CONFIG_DIR)/features $(shell find $(CONFIG_DIR)/features -name 'convert.*' -o -name 'image.*'):
+$(shell find . -maxdepth 1 -type f) image.d $(CONFIG_DIR)/features $(CONFIG_DIR)/tests $(shell find $(CONFIG_DIR)/features -name 'convert.*' -o -name 'image.*'):
 	true
+
+# ————————————————————————————————————————————————————————————————
+
+test(%): test .build/$$(shell $$(PYTHON) parse_features --feature-dir '$$(CONFIG_DIR)/features' --default-arch '$$(NATIVE_ARCH)' --default-version '$$(DEFAULT_VERSION)' --cname '$$*').tar $(shell ./make_directory_dependency '$(CONFIG_DIR)/features') $(shell ./make_directory_dependency '$(CONFIG_DIR)/tests') | .tmp/test.image
+	target '$(patsubst %.tar,%.test,$(word 2,$^))'
+	info 'running tests for $*'
+	script_path="$$(realpath '$(word 1,$^)')"
+	input_path="$$(realpath '$(word 2,$^)')"
+	features_dir_path="$$(realpath '$(word 3,$^)')"
+	tests_dir_path="$$(realpath '$(word 4,$^)')"
+	image="$$(cat '$(word 1,$|)')"
+	BUILDER_FEATURES="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
+	export BUILDER_FEATURES
+	touch "$$tests_dir_path/test.log"
+	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$input_path:/builder/rootfs.tar:ro" -v "$$features_dir_path:/builder/features:ro" -v "$$tests_dir_path:/builder/tests:ro" -e BUILDER_FEATURES "$$image" /script
 
 # ————————————————————————————————————————————————————————————————
 

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -eufo pipefail
+
+IFS=',' read -r -a features <<< "$BUILDER_FEATURES"
+
+cat > /builder/test_config.yaml <<EOF
+chroot:
+  image: /builder/rootfs.tar
+  ip: 127.0.0.1
+  port: 2222
+  features:
+$(for feature in "${features[@]}"; do echo "    - $feature"; done)
+  ssh:
+    ssh_key_filepath: /tmp/ssh_priv_key
+    user: root
+EOF
+
+python3 -m venv /opt/python_venv
+export PATH="/opt/python_venv/bin:$PATH"
+
+pip install pipenv
+cd /builder/tests
+pipenv install --system --skip-lock --dev
+
+mount -t tmpfs none /tmp
+touch /tmp/test.log
+mount --bind /tmp/test.log /builder/tests/test.log
+python3 -m pytest --iaas=chroot --configfile=/builder/test_config.yaml

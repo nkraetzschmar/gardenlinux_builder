@@ -22,6 +22,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         arch: [ amd64, arm64 ]
         cname: [ kvm, kvm_secureboot, kvm_readonly_secureboot, metal, metal_secureboot, metal_readonly_secureboot, aws, gcp, azure, ali, firecracker ]
@@ -43,7 +44,9 @@ jobs:
           t="$(date '+%s')"
           find .build -exec touch -d "@$t" {} +
       - name: build
-        run: make TMPDIR=/mnt ${{ matrix.cname }}-${{ matrix.arch }}-today
+        run: make TMPDIR=/mnt "${{ matrix.cname }}-${{ matrix.arch }}-today"
+      - name: test
+        run: make TMPDIR=/mnt "test(${{ matrix.cname }}-${{ matrix.arch }}-today)"
       - name: list build artifacts
         run: ls -lah .build/
       - name: pack build artifacts

@@ -8,6 +8,8 @@ mkdir /chroot
 
 # tmpfs is required to allow setting security xattrs in user namespace
 mount -t tmpfs tmpfs /chroot
+chmod 755 /chroot
+chcon system_u:object_r:unlabeled_t:s0 /chroot
 
 tar --extract --xattrs --xattrs-include 'security.*' --directory /chroot < /input
 
