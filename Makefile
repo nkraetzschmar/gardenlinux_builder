@@ -23,7 +23,7 @@ CONTAINER_ARCHIVE_FORMAT := docker
 endif
 endif
 
-CONTAINER_RUN_OPTS := --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt label=disable
+CONTAINER_RUN_OPTS := --net host --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt label=disable
 CONTAINER_RUN := $(CONTAINER_ENGINE) container run $(CONTAINER_RUN_OPTS)
 
 else
@@ -37,7 +37,7 @@ PYTHON_DEPENDENCIES := pyyaml networkx
 CONTAINER_BASE_IMAGE := docker.io/debian:bookworm
 
 NATIVE_ARCH := $(shell ./get_arch)
-NATIVE_PKGS := bash dash dpkg grep mawk policycoreutils sed tar util-linux gzip xz-utils
+NATIVE_PKGS := bash dash dpkg grep mawk openssh-client policycoreutils sed tar util-linux gzip xz-utils
 
 ifndef REPO
 REPO := http://repo.gardenlinux.io/gardenlinux
@@ -136,7 +136,7 @@ shellcheck:
 	info 'initializing podman machine'
 	machine="podman-machine-$$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d - | head -c 8)"
 	path="$$(realpath '$|')"
-	podman machine init --disk-size 32 --volume "$$PWD:$$PWD" --volume "$$path:$$path" --now "$$machine"
+	podman machine init --memory 8192 --disk-size 32 --volume "$$PWD:$$PWD" --volume "$$path:$$path" --now "$$machine"
 	podman machine ssh "$$machine" 'echo SELINUX=disabled | sudo tee /etc/selinux/config'
 	podman machine stop "$$machine"
 	podman machine start "$$machine"
@@ -217,8 +217,8 @@ endif
 	version="$$(echo '$*' | cut -d - -f 2)"
 	script_path="$$(realpath '$<')"
 	image="$$(cat '$|')"
+	touch '$@'
 	output_path="$$(realpath '$@')"
-	touch "$$output_path"
 	repo_key_args=()
 	repo_key_mount_opts=()
 	if [ -n '$(REPO_KEY)' ]; then
@@ -233,8 +233,8 @@ endif
 	info "configuring native_bin"
 	script_path="$$(realpath '$(word 1,$^)')"
 	image="$$(cat '$(word 2,$^)')"
+	touch '$@'
 	output_path="$$(realpath '$@')"
-	touch "$$output_path"
 	$(CONTAINER_RUN) --rm -v "$$script_path:/script:ro" -v "$$output_path:/output" "$$image" /script $(NATIVE_PKGS) || (rm "$$output_path"; false)
 
 .tmp/native_bin-%.volume: .build/native_bin-%.tar | .tmp/base.image
@@ -273,8 +273,8 @@ endif
 	volume="$$(cat '$(word 3,$^)')"
 	features_dir_path="$$(realpath '$(word 4,$^)')"
 	image="$$(cat '$(word 1,$|)')"
+	touch '$@'
 	output_path="$$(realpath '$@')"
-	touch "$$output_path"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
 	BUILDER_CNAME='$*'
 	BUILDER_VERSION='$(call cname_version,$*)'
@@ -292,8 +292,8 @@ endif
 	image_d_path="$$(realpath '$(word 3,$^)')"
 	features_dir_path="$$(realpath '$(word 4,$^)')"
 	image="$$(cat '$(word 1,$|)')"
+	touch '$@'
 	output_path="$$(realpath '$@')"
-	touch "$$output_path"
 	features="$$($(PYTHON) parse_features --feature-dir '$(CONFIG_DIR)/features' --cname '$*' features)"
 	BUILDER_CNAME='$*'
 	BUILDER_VERSION='$(call cname_version,$*)'
@@ -313,8 +313,8 @@ $1: $$$$(shell PYTHON='$$(PYTHON)' CONFIG_DIR='$$(CONFIG_DIR)' ./make_get_image_
 	image_d_path="$$$$(realpath '$$(word 3,$$^)')"
 	features_dir_path="$$$$(realpath '$$(word 4,$$^)')"
 	image="$$$$(cat '$$(word 1,$$|)')"
+	touch '$$@'
 	output_path="$$$$(realpath '$$@')"
-	touch "$$$$output_path"
 	artifact='$$*'
 	extension="$$$$(grep -E -o '(\.[a-z][a-zA-Z0-9\-_]*)*$$$$' <<< "$$$$artifact")"
 	cname="$$$${artifact%"$$$$extension"}"
