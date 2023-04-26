@@ -6,31 +6,12 @@ arch="$1"
 version="$2"
 repo="$3"
 
-debootstrap_opts=()
-
-key_file=
-
-if [ "$#" -ge 4 ]; then
-	key_file="$4"
-	GNUPGHOME="$(mktemp -d)"
-	export GNUPGHOME
-	keyring="$GNUPGHOME/$(basename "$key_file" | sed 's/.asc$//').kbx"
-	gpg --batch --no-default-keyring --keyring "$keyring" --import "$key_file"
-	debootstrap_opts+=(--keyring "$keyring")
-fi
-
 mkdir /chroot
 chmod 755 /chroot
-container=lxc debootstrap "${debootstrap_opts[@]}" --arch "$arch" --variant minbase "$version" /chroot "$repo" bookworm || (cat /chroot/debootstrap/debootstrap.log; false)
+container=lxc debootstrap --keyring /keyring --arch "$arch" --variant minbase "$version" /chroot "$repo" bookworm || (cat /chroot/debootstrap/debootstrap.log; false)
 
-apt_sources_opts=
-if [ -n "$key_file" ]; then
-	apt_key_file="/etc/apt/trusted.gpg.d/$(basename "$key_file")"
-	cp "$key_file" "/chroot$apt_key_file"
-	apt_sources_opts="[signed-by=$apt_key_file]"
-fi
-
-echo "deb $apt_sources_opts $repo $version main" > /chroot/etc/apt/sources.list
+cp /keyring "/chroot/etc/apt/trusted.gpg.d/keyring.gpg"
+echo "deb $repo $version main" > /chroot/etc/apt/sources.list
 
 find /chroot/proc /chroot/sys /chroot/dev /chroot/run /chroot/tmp -mindepth 1 -delete
 tar --create --sort name --xattrs --xattrs-include 'security.*' --numeric-owner --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime --transform 's|^\./||' --directory /chroot . > /output

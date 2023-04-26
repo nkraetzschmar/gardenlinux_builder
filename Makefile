@@ -39,13 +39,13 @@ CONTAINER_BASE_IMAGE := docker.io/debian:bookworm
 NATIVE_ARCH := $(shell ./get_arch)
 NATIVE_PKGS := bash dash dpkg grep mawk openssh-client policycoreutils sed tar util-linux gzip xz-utils
 
-ifndef REPO
-REPO := http://repo.gardenlinux.io/gardenlinux
-REPO_KEY := gardenlinux.asc
+ifndef CONFIG_DIR
+$(error 'CONFIG_DIR undefined')
 endif
-
-CONFIG_DIR := gardenlinux
 export CONFIG_DIR
+
+REPO := http://repo.gardenlinux.io/gardenlinux
+REPO_KEY := '$(CONFIG_DIR)/keyring.gpg'
 
 DEFAULT_VERSION := $(shell '$(CONFIG_DIR)/get_version')
 COMMIT := $(shell CONFIG_DIR='$(CONFIG_DIR)' ./get_commit)
@@ -135,8 +135,9 @@ shellcheck:
 	target '$@'
 	info 'initializing podman machine'
 	machine="podman-machine-$$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d - | head -c 8)"
-	path="$$(realpath '$|')"
-	podman machine init --memory 8192 --disk-size 32 --volume "$$PWD:$$PWD" --volume "$$path:$$path" --now "$$machine"
+	config_path="$$(realpath '$(CONFIG_DIR)')"
+	tmp_path="$$(realpath '$|')"
+	podman machine init --memory 8192 --disk-size 32 --volume "$$PWD:$$PWD" --volume "$$config_path:$$config_path" --volume "$$tmp_path:$$tmp_path" --now "$$machine"
 	podman machine ssh "$$machine" 'echo SELINUX=disabled | sudo tee /etc/selinux/config'
 	podman machine stop "$$machine"
 	podman machine start "$$machine"
@@ -219,14 +220,8 @@ endif
 	image="$$(cat '$|')"
 	touch '$@'
 	output_path="$$(realpath '$@')"
-	repo_key_args=()
-	repo_key_mount_opts=()
-	if [ -n '$(REPO_KEY)' ]; then
-		repo_key_name="$$(basename '$(REPO_KEY)')"
-		repo_key_args+=("/$$repo_key_name")
-		repo_key_mount_opts+=(-v "$$(realpath '$(REPO_KEY)'):/$$repo_key_name")
-	fi
-	$(CONTAINER_RUN) --rm "$${repo_key_mount_opts[@]}" -v "$$script_path:/script:ro" -v "$$output_path:/output" "$$image" /script "$$arch" "$$version" '$(REPO)' "$${repo_key_args[@]}" || (rm "$$output_path"; false)
+	repo_key_path="$$(realpath '$(REPO_KEY)')"
+	$(CONTAINER_RUN) --rm "$${repo_key_mount_opts[@]}" -v "$$script_path:/script:ro" -v "$$output_path:/output" -v "$$repo_key_path:/keyring" "$$image" /script "$$arch" "$$version" '$(REPO)' || (rm "$$output_path"; false)
 
 .build/native_bin-%.tar: configure_nativetools .tmp/bootstrap-$(NATIVE_ARCH)-%.image
 	target '$@'
